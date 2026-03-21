@@ -6,27 +6,9 @@
   department_name: string
   entry_year: number
   active_rule_set_id: string | null
+  current_year: number
+  current_term: number
   created_at: string
-}
-
-export type Category = {
-  id: string
-  user_id: string
-  name: string
-  created_at: string
-}
-
-export type Course = {
-  id: string
-  user_id: string
-  course_name: string
-  course_code: string | null
-  credits: number
-  category_id: string | null
-  is_required: boolean
-  note: string | null
-  created_at: string
-  category?: Category
 }
 
 export type RuleSet = {
@@ -37,15 +19,38 @@ export type RuleSet = {
   faculty_name: string | null
   department_name: string | null
   entry_year: number | null
+  description: string | null
   is_public: boolean
   version: number
   original_rule_set_id: string | null
+  years_of_study: number
+  terms_per_year: number
   created_at: string
   updated_at: string
-  rules?: Rule[]
 }
 
-export type Rule = {
+export type RuleSetCategory = {
+  id: string
+  rule_set_id: string
+  name: string
+  sort_order: number
+  created_at: string
+}
+
+export type RuleSetCourse = {
+  id: string
+  rule_set_id: string
+  course_name: string
+  course_code: string | null
+  credits: number
+  category_id: string | null
+  is_required: boolean
+  note: string | null
+  created_at: string
+  category?: RuleSetCategory
+}
+
+export type RuleSetRule = {
   id: string
   rule_set_id: string
   rule_type: 'total_credits_min' | 'category_credits_min' | 'category_credits_max' | 'required_courses_all' | 'elective_group_credits_min'
@@ -53,15 +58,22 @@ export type Rule = {
   created_at: string
 }
 
-export type CompletedCourse = {
+export type UserCourseRecord = {
   id: string
   user_id: string
-  course_id: string
+  rule_set_id: string
+  template_course_id: string | null
+  custom_course_name: string | null
+  custom_credits: number | null
+  custom_category_id: string | null
+  status: 'completed' | 'in_progress' | 'planned' | 'failed'
   acquired_year: number | null
   acquired_term: string | null
   grade: string | null
+  note: string | null
   created_at: string
-  course?: Course
+  updated_at: string
+  course?: RuleSetCourse
 }
 
 export type RuleSetNotification = {
@@ -77,9 +89,20 @@ export type RuleSetNotification = {
 export type RuleResult = {
   rule_id: string
   rule_type: string
-  passed: boolean
+  status: 'pass' | 'fail' | 'warning'
   current_value: number
   required_value: number
   shortage: number
   message: string
+}
+
+export type SemesterRule = {
+  id: string
+  rule_set_id: string
+  year_num: number
+  term_num: number
+  label: string | null
+  cumulative_min_credits: number | null
+  required_course_ids: string[]
+  created_at: string
 }
