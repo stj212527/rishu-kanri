@@ -71,6 +71,8 @@ export type UserCourseRecord = {
   acquired_term: string | null
   grade: string | null
   note: string | null
+  shared_course_id: string | null
+  memo: string | null
   created_at: string
   updated_at: string
   course?: RuleSetCourse
@@ -105,4 +107,19 @@ export type SemesterRule = {
   cumulative_min_credits: number | null
   required_course_ids: string[]
   created_at: string
+}
+
+export type SharedCourse = {
+  id: string
+  created_by: string
+  course_name: string
+  credits: number
+  category_name: string | null
+  university_name: string | null
+  faculty_name: string | null
+  is_required: boolean
+  note: string | null
+  is_public: boolean
+  created_at: string
+  updated_at: string
 }

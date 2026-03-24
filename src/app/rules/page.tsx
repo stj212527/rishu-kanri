@@ -6,6 +6,13 @@ import { RuleSet, RuleSetCategory, RuleSetCourse, RuleSetRule, SemesterRule } fr
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
+const NAV_TABS = [
+  { href: '/dashboard', label: 'ホーム' },
+  { href: '/courses', label: '科目・履修' },
+  { href: '/rules', label: 'ルール管理' },
+  { href: '/setup', label: '基本情報' },
+]
+
 const RULE_TYPE_LABELS: Record<string, string> = {
   total_credits_min: '総取得単位の最低条件',
   category_credits_min: '区分別の最低単位',
@@ -26,12 +33,14 @@ export default function RulesPage() {
   const [semesterRulesMap, setSemesterRulesMap] = useState<Record<string, SemesterRule[]>>({})
   const [activeRuleSetId, setActiveRuleSetId] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState('')
-  const [showPublic, setShowPublic] = useState(false)
+  const [showAllPublic, setShowAllPublic] = useState(false)
   const [expandedSetId, setExpandedSetId] = useState<string | null>(null)
+  const [expandedPublicSetId, setExpandedPublicSetId] = useState<string | null>(null)
   const [activeInnerTab, setActiveInnerTab] = useState<Record<string, 'courses' | 'rules' | 'semester'>>({})
   const [searchUniversity, setSearchUniversity] = useState('')
   const [searchFaculty, setSearchFaculty] = useState('')
   const [searchKeyword, setSearchKeyword] = useState('')
+
   const [showSetForm, setShowSetForm] = useState(false)
   const [editingSetId, setEditingSetId] = useState<string | null>(null)
   const [setTitle, setSetTitle] = useState('')
@@ -43,6 +52,7 @@ export default function RulesPage() {
   const [setIsPublic, setSetIsPublic] = useState(false)
   const [setYears, setSetYears] = useState(4)
   const [setTerms, setSetTerms] = useState(2)
+
   const [showCategoryForm, setShowCategoryForm] = useState<string | null>(null)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [showCourseForm, setShowCourseForm] = useState<string | null>(null)
@@ -64,6 +74,7 @@ export default function RulesPage() {
   const [semLabel, setSemLabel] = useState('')
   const [semCredits, setSemCredits] = useState<number | null>(null)
   const [semCourseIds, setSemCourseIds] = useState<string[]>([])
+
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
@@ -112,6 +123,9 @@ export default function RulesPage() {
     const kMatch = !searchKeyword || rs.title.includes(searchKeyword)
     return uMatch && fMatch && kMatch
   })
+
+  const previewPublicRuleSets = filteredPublicRuleSets.slice(0, 3)
+  const displayedPublicRuleSets = showAllPublic ? filteredPublicRuleSets : previewPublicRuleSets
 
   const handleActivate = async (ruleSetId: string) => {
     await supabase.from('user_profiles').update({ active_rule_set_id: ruleSetId }).eq('user_id', currentUserId)
@@ -162,7 +176,7 @@ export default function RulesPage() {
   }
 
   const handleDeleteSet = async (id: string) => {
-    if (!confirm('このルールセットを削除しますか？区分・科目・ルールもすべて削除されます。')) return
+    if (!confirm('このルールセットを削除しますか？')) return
     await supabase.from('rule_sets').delete().eq('id', id)
     fetchData()
   }
@@ -209,14 +223,12 @@ export default function RulesPage() {
   const handleAddCategory = async (ruleSetId: string) => {
     if (!newCategoryName) return
     await supabase.from('rule_set_categories').insert({ rule_set_id: ruleSetId, name: newCategoryName, sort_order: 0 })
-    setNewCategoryName(''); setShowCategoryForm(null)
-    fetchData()
+    setNewCategoryName(''); setShowCategoryForm(null); fetchData()
   }
 
   const handleDeleteCategory = async (id: string) => {
     if (!confirm('この区分を削除しますか？')) return
-    await supabase.from('rule_set_categories').delete().eq('id', id)
-    fetchData()
+    await supabase.from('rule_set_categories').delete().eq('id', id); fetchData()
   }
 
   const handleAddCourse = async (ruleSetId: string) => {
@@ -228,15 +240,13 @@ export default function RulesPage() {
         credits: courseCredits, category_id: courseCategoryId || null, is_required: courseIsRequired,
       })
       setCourseName(''); setCourseCode(''); setCourseCredits(2); setCourseCategoryId(''); setCourseIsRequired(false)
-      setShowCourseForm(null)
-      fetchData()
+      setShowCourseForm(null); fetchData()
     } finally { setLoading(false) }
   }
 
   const handleDeleteCourse = async (id: string) => {
     if (!confirm('この科目を削除しますか？')) return
-    await supabase.from('rule_set_courses').delete().eq('id', id)
-    fetchData()
+    await supabase.from('rule_set_courses').delete().eq('id', id); fetchData()
   }
 
   const buildPayload = (rs: RuleSetFull) => {
@@ -257,15 +267,13 @@ export default function RulesPage() {
       await supabase.from('rule_set_rules').insert({ rule_set_id: rs.id, rule_type: ruleType, rule_payload: buildPayload(rs) })
       setRuleType('total_credits_min'); setMinCredits(124); setSelectedCategoryId('')
       setMaxCredits(20); setSelectedCourseIds([]); setGroupName('')
-      setShowRuleForm(null)
-      fetchData()
+      setShowRuleForm(null); fetchData()
     } finally { setLoading(false) }
   }
 
   const handleDeleteRule = async (id: string) => {
     if (!confirm('このルールを削除しますか？')) return
-    await supabase.from('rule_set_rules').delete().eq('id', id)
-    fetchData()
+    await supabase.from('rule_set_rules').delete().eq('id', id); fetchData()
   }
 
   const handleAddSemesterRule = async (ruleSetId: string) => {
@@ -277,21 +285,18 @@ export default function RulesPage() {
         required_course_ids: semCourseIds.length > 0 ? semCourseIds : [],
       })
       setSemYear(1); setSemTerm(1); setSemLabel(''); setSemCredits(null); setSemCourseIds([])
-      setShowSemForm(null)
-      fetchData()
+      setShowSemForm(null); fetchData()
     } finally { setLoading(false) }
   }
 
   const handleDeleteSemesterRule = async (id: string) => {
     if (!confirm('この進級条件を削除しますか？')) return
-    await supabase.from('semester_rules').delete().eq('id', id)
-    fetchData()
+    await supabase.from('semester_rules').delete().eq('id', id); fetchData()
   }
 
   const toggleCourseId = (id: string) => {
     setSelectedCourseIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
-
   const toggleSemCourseId = (id: string) => {
     setSemCourseIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
@@ -311,19 +316,97 @@ export default function RulesPage() {
   const getInnerTab = (id: string) => activeInnerTab[id] || 'courses'
   const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i)
 
+  const PublicRuleSetCard = ({ rs, expanded, onToggle }: { rs: RuleSetFull, expanded: boolean, onToggle: () => void }) => (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <div className="p-4">
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex-1">
+            <p className="text-base font-semibold text-gray-800">{rs.title}</p>
+            {(rs.university_name || rs.faculty_name) && (
+              <p className="text-sm text-gray-400 mt-0.5">{rs.university_name} {rs.faculty_name} {rs.department_name} {rs.entry_year && rs.entry_year + '年度'}</p>
+            )}
+            <p className="text-sm text-gray-400 mt-0.5">v{rs.version} · {rs.years_of_study || 4}年制 · 科目{rs.courses.length}件 · ルール{rs.rules.length}個</p>
+            {rs.description && <p className="text-sm text-gray-500 mt-1">{rs.description}</p>}
+            {rs.categories.length > 0 && (
+              <p className="text-sm text-gray-400 mt-1">区分：{rs.categories.map(c => c.name).join('、')}</p>
+            )}
+          </div>
+          <div className="flex flex-col gap-2 ml-3">
+            <button onClick={() => handleCopySet(rs)} disabled={loading}
+              className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap">
+              コピーして使う
+            </button>
+            <button onClick={onToggle}
+              className="border border-gray-300 text-gray-600 text-sm px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
+              {expanded ? '詳細を閉じる' : '詳細を見る'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-gray-100 bg-gray-50 p-4 space-y-3">
+          {/* 科目一覧 */}
+          {rs.courses.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-2">科目一覧（{rs.courses.length}件）</p>
+              <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                {rs.courses.map(c => (
+                  <div key={c.id} className="flex items-center justify-between px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-700">{c.course_name}</span>
+                      {c.is_required && <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">必修</span>}
+                    </div>
+                    <span className="text-xs text-gray-400">{c.credits}単位</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* ルール一覧 */}
+          {rs.rules.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-gray-600 mb-2">ルール一覧（{rs.rules.length}件）</p>
+              <div className="space-y-1">
+                {rs.rules.map(rule => (
+                  <div key={rule.id} className="bg-white rounded-lg border border-gray-100 px-3 py-2">
+                    <p className="text-xs text-gray-400">{RULE_TYPE_LABELS[rule.rule_type]}</p>
+                    <p className="text-sm text-gray-700">{getRuleSummary(rule)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-5 flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">ルール管理</h1>
-        <Link href="/dashboard" className="text-base text-blue-500 hover:text-blue-700 font-medium">
-          ← ホームに戻る
-        </Link>
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-3xl mx-auto px-4">
+          <div className="flex justify-between items-center py-4">
+            <h1 className="text-xl font-bold text-gray-900">履修管理ツール</h1>
+          </div>
+          <div className="flex gap-1 -mb-px">
+            {NAV_TABS.map(tab => (
+              <Link key={tab.href} href={tab.href}
+                className={'px-4 py-2.5 text-base font-medium border-b-2 transition-colors ' +
+                  (tab.href === '/rules'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300')}>
+                {tab.label}
+              </Link>
+            ))}
+          </div>
+        </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+      <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
         {/* 自分のルールセット */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-700">自分のルールセット</h2>
             <button onClick={() => { setEditingSetId(null); setSetTitle(''); setSetUniversity(''); setSetFaculty(''); setSetDepartment(''); setSetDescription(''); setSetIsPublic(false); setSetYears(4); setSetTerms(2); setShowSetForm(!showSetForm) }}
@@ -420,24 +503,17 @@ export default function RulesPage() {
                   {expandedSetId === rs.id && (
                     <div className="mt-4 space-y-4">
                       <div className="flex gap-2">
-                        <button onClick={() => setActiveInnerTab(prev => ({ ...prev, [rs.id]: 'courses' }))}
-                          className={'flex-1 py-2 rounded-lg text-sm font-medium transition-colors ' +
-                            (getInnerTab(rs.id) === 'courses' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
-                          区分・科目
-                        </button>
-                        <button onClick={() => setActiveInnerTab(prev => ({ ...prev, [rs.id]: 'rules' }))}
-                          className={'flex-1 py-2 rounded-lg text-sm font-medium transition-colors ' +
-                            (getInnerTab(rs.id) === 'rules' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
-                          ルール
-                        </button>
-                        <button onClick={() => setActiveInnerTab(prev => ({ ...prev, [rs.id]: 'semester' }))}
-                          className={'flex-1 py-2 rounded-lg text-sm font-medium transition-colors ' +
-                            (getInnerTab(rs.id) === 'semester' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
-                          進級条件
-                        </button>
+                        {(['courses', 'rules', 'semester'] as const).map(tab => (
+                          <button key={tab} onClick={() => setActiveInnerTab(prev => ({ ...prev, [rs.id]: tab }))}
+                            className={'flex-1 py-2 rounded-lg text-sm font-medium transition-colors ' +
+                              (getInnerTab(rs.id) === tab
+                                ? tab === 'semester' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
+                            {tab === 'courses' ? '区分・科目' : tab === 'rules' ? 'ルール' : '進級条件'}
+                          </button>
+                        ))}
                       </div>
 
-                      {/* 区分・科目タブ */}
                       {getInnerTab(rs.id) === 'courses' && (
                         <div className="space-y-3">
                           {rs.categories.map(cat => (
@@ -446,7 +522,7 @@ export default function RulesPage() {
                                 <span className="text-base font-medium text-gray-700">{cat.name}</span>
                                 <button onClick={() => handleDeleteCategory(cat.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
                               </div>
-                              <div className="space-y-1 mb-2">
+                              <div className="space-y-1">
                                 {rs.courses.filter(c => c.category_id === cat.id).map(course => (
                                   <div key={course.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
                                     <div className="flex items-center gap-2">
@@ -542,7 +618,6 @@ export default function RulesPage() {
                         </div>
                       )}
 
-                      {/* ルールタブ */}
                       {getInnerTab(rs.id) === 'rules' && (
                         <div className="space-y-3">
                           {rs.rules.map(rule => (
@@ -644,7 +719,6 @@ export default function RulesPage() {
                         </div>
                       )}
 
-                      {/* 進級条件タブ */}
                       {getInnerTab(rs.id) === 'semester' && (
                         <div className="space-y-3">
                           <p className="text-sm text-gray-400">進級条件を設定します。ダッシュボードのタイムラインに反映されます。</p>
@@ -652,9 +726,7 @@ export default function RulesPage() {
                             const termsPerYear = rs.terms_per_year || 2
                             const isLastTerm = sem.term_num === termsPerYear
                             const nextYear = isLastTerm ? sem.year_num + 1 : sem.year_num
-                            const autoLabel = isLastTerm
-                              ? nextYear + '年生への進級条件'
-                              : sem.year_num + '年' + (sem.term_num + 1) + '学期への進級条件'
+                            const autoLabel = isLastTerm ? nextYear + '年生への進級条件' : sem.year_num + '年' + (sem.term_num + 1) + '学期への進級条件'
                             const reqCourseIds = (sem.required_course_ids as string[]) || []
                             const reqCourseNames = reqCourseIds.map((id: string) => rs.courses.find(c => c.id === id)?.course_name).filter(Boolean)
                             return (
@@ -662,12 +734,8 @@ export default function RulesPage() {
                                 <div className="flex items-start justify-between">
                                   <div>
                                     <p className="text-base font-medium text-purple-700">{sem.label || autoLabel}</p>
-                                    {sem.cumulative_min_credits && (
-                                      <p className="text-sm text-gray-600 mt-0.5">累積{sem.cumulative_min_credits}単位以上</p>
-                                    )}
-                                    {reqCourseNames.length > 0 && (
-                                      <p className="text-sm text-gray-600 mt-0.5">必須科目：{reqCourseNames.join('、')}</p>
-                                    )}
+                                    {sem.cumulative_min_credits && <p className="text-sm text-gray-600 mt-0.5">累積{sem.cumulative_min_credits}単位以上</p>}
+                                    {reqCourseNames.length > 0 && <p className="text-sm text-gray-600 mt-0.5">必須科目：{reqCourseNames.join('、')}</p>}
                                   </div>
                                   <button onClick={() => handleDeleteSemesterRule(sem.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
                                 </div>
@@ -686,28 +754,18 @@ export default function RulesPage() {
                                     Array.from({ length: rs.terms_per_year || 2 }, (_, ti) => ti + 1).map(t => {
                                       const isLast = t === (rs.terms_per_year || 2)
                                       const nextY = isLast ? y + 1 : y
-                                      const optLabel = isLast
-                                        ? y + '年終了時（' + nextY + '年生への進級条件）'
-                                        : y + '年' + t + '学期終了時'
+                                      const optLabel = isLast ? y + '年終了時（' + nextY + '年生への進級条件）' : y + '年' + t + '学期終了時'
                                       return <option key={y + '-' + t} value={y + '-' + t}>{optLabel}</option>
                                     })
                                   )}
                                 </select>
                               </div>
+                              <input type="text" value={semLabel} onChange={e => setSemLabel(e.target.value)} placeholder="条件名（任意・空白で自動生成）"
+                                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                              <input type="number" value={semCredits || ''} onChange={e => setSemCredits(e.target.value ? Number(e.target.value) : null)} placeholder="累積必要単位数（任意）"
+                                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-purple-500" />
                               <div>
-                                <label className="block text-sm text-gray-500 mb-1">条件名（任意・空白で自動生成）</label>
-                                <input type="text" value={semLabel} onChange={e => setSemLabel(e.target.value)}
-                                  placeholder="例：2年生への進級条件"
-                                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                              </div>
-                              <div>
-                                <label className="block text-sm text-gray-500 mb-1">累積必要単位数（任意）</label>
-                                <input type="number" value={semCredits || ''} onChange={e => setSemCredits(e.target.value ? Number(e.target.value) : null)}
-                                  placeholder="例：30"
-                                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                              </div>
-                              <div>
-                                <label className="block text-sm text-gray-500 mb-2">必須履修科目（任意・複数選択可）</label>
+                                <label className="block text-sm text-gray-500 mb-2">必須履修科目（任意）</label>
                                 <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
                                   {rs.courses.length === 0 ? (
                                     <p className="text-sm text-gray-400 p-3">先に科目を登録してください</p>
@@ -721,9 +779,7 @@ export default function RulesPage() {
                                     ))
                                   )}
                                 </div>
-                                {semCourseIds.length > 0 && (
-                                  <p className="text-sm text-purple-600 mt-1">{semCourseIds.length}科目選択中</p>
-                                )}
+                                {semCourseIds.length > 0 && <p className="text-sm text-purple-600 mt-1">{semCourseIds.length}科目選択中</p>}
                               </div>
                               <div className="flex gap-3">
                                 <button onClick={() => handleAddSemesterRule(rs.id)} disabled={loading}
@@ -753,51 +809,36 @@ export default function RulesPage() {
         </div>
 
         {/* 公開ルールセット */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-700">他のユーザーの公開ルールセット</h2>
-            <button onClick={() => setShowPublic(!showPublic)} className="text-base text-blue-500 hover:text-blue-700">
-              {showPublic ? '閉じる' : '一覧を見る'}
-            </button>
           </div>
-          {showPublic && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <input type="text" placeholder="大学名で絞り込み" value={searchUniversity} onChange={e => setSearchUniversity(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                <input type="text" placeholder="学部名で絞り込み" value={searchFaculty} onChange={e => setSearchFaculty(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                <input type="text" placeholder="キーワード検索" value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 col-span-2" />
-              </div>
-              <p className="text-sm text-gray-400">{filteredPublicRuleSets.length}件表示中</p>
-              {filteredPublicRuleSets.length === 0 ? (
-                <p className="text-base text-gray-400 text-center py-8">条件に一致するルールセットがありません</p>
-              ) : (
-                filteredPublicRuleSets.map(rs => (
-                  <div key={rs.id} className="border border-gray-200 rounded-xl p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <p className="text-lg font-semibold text-gray-800">{rs.title}</p>
-                        {(rs.university_name || rs.faculty_name) && (
-                          <p className="text-sm text-gray-400">{rs.university_name} {rs.faculty_name} {rs.department_name} {rs.entry_year && rs.entry_year + '年度'}</p>
-                        )}
-                        <p className="text-sm text-gray-400 mt-0.5">v{rs.version} · 科目{rs.courses.length}件 · ルール{rs.rules.length}個</p>
-                        {rs.description && <p className="text-sm text-gray-500 mt-1">{rs.description}</p>}
-                      </div>
-                      <button onClick={() => handleCopySet(rs)} disabled={loading}
-                        className="bg-gray-100 text-gray-700 text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors whitespace-nowrap ml-4">
-                        コピーして使う
-                      </button>
-                    </div>
-                    {rs.categories.length > 0 && (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-sm text-gray-500 mb-1">区分：{rs.categories.map(c => c.name).join('、')}</p>
-                        <p className="text-sm text-gray-500">科目数：{rs.courses.length}件（必修{rs.courses.filter(c => c.is_required).length}件）</p>
-                      </div>
-                    )}
-                  </div>
-                ))
+
+          {/* 検索フォーム */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <input type="text" placeholder="大学名で絞り込み" value={searchUniversity} onChange={e => setSearchUniversity(e.target.value)}
+              className="border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" placeholder="学部名で絞り込み" value={searchFaculty} onChange={e => setSearchFaculty(e.target.value)}
+              className="border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" placeholder="キーワード検索" value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)}
+              className="border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 col-span-2" />
+          </div>
+          <p className="text-sm text-gray-400 mb-3">{filteredPublicRuleSets.length}件</p>
+
+          {filteredPublicRuleSets.length === 0 ? (
+            <p className="text-base text-gray-400 text-center py-8">条件に一致するルールセットがありません</p>
+          ) : (
+            <div className="space-y-3">
+              {displayedPublicRuleSets.map(rs => (
+                <PublicRuleSetCard key={rs.id} rs={rs}
+                  expanded={expandedPublicSetId === rs.id}
+                  onToggle={() => setExpandedPublicSetId(expandedPublicSetId === rs.id ? null : rs.id)} />
+              ))}
+              {filteredPublicRuleSets.length > 3 && (
+                <button onClick={() => setShowAllPublic(!showAllPublic)}
+                  className="w-full py-3 text-base text-blue-500 hover:text-blue-700 border border-dashed border-blue-300 rounded-xl hover:bg-blue-50 transition-colors">
+                  {showAllPublic ? '閉じる' : `残り${filteredPublicRuleSets.length - 3}件を見る`}
+                </button>
               )}
             </div>
           )}
