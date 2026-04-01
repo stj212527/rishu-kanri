@@ -417,7 +417,7 @@ export default function RulesPage() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4">
           <div className="flex justify-between items-center py-4">
-            <h1 className="text-xl font-bold text-gray-900">Rism</h1>
+            <h1 className="text-xl font-bold text-gray-900">履修管理ツール</h1>
           </div>
           <div className="flex gap-1 -mb-px">
             {NAV_TABS.map(tab => (
