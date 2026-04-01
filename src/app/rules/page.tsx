@@ -75,6 +75,9 @@ export default function RulesPage() {
   const [semCredits, setSemCredits] = useState<number | null>(null)
   const [semCourseIds, setSemCourseIds] = useState<string[]>([])
 
+  // 【バグ4修正】削除エラーを表示するためのstate
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
@@ -175,17 +178,32 @@ export default function RulesPage() {
     setShowSetForm(true)
   }
 
+  // 【バグ4修正】削除エラーをキャッチして表示
   const handleDeleteSet = async (id: string) => {
     if (!confirm('このルールセットを削除しますか？')) return
-    await supabase.from('rule_sets').delete().eq('id', id)
-    fetchData()
+    setDeleteError(null)
+    try {
+      const { error } = await supabase.from('rule_sets').delete().eq('id', id)
+      if (error) {
+        console.error('Delete error:', error)
+        setDeleteError('削除に失敗しました。このルールセットは使用中またはRLSポリシーにより削除できない可能性があります。（' + error.message + '）')
+        return
+      }
+      fetchData()
+    } catch (e) {
+      setDeleteError('削除中に予期しないエラーが発生しました。')
+      console.error(e)
+    }
   }
 
+  // 【改善6】コピー時「（コピー）」を削除
   const handleCopySet = async (rs: RuleSetFull) => {
     setLoading(true)
     try {
       const newSetRes = await supabase.from('rule_sets').insert({
-        created_by: currentUserId, title: rs.title + ' (コピー)', is_public: false,
+        created_by: currentUserId,
+        title: rs.title, // ← ' (コピー)' を削除
+        is_public: false,
         version: 1, original_rule_set_id: rs.id,
         university_name: rs.university_name, faculty_name: rs.faculty_name,
         department_name: rs.department_name, entry_year: rs.entry_year,
@@ -346,7 +364,6 @@ export default function RulesPage() {
 
       {expanded && (
         <div className="border-t border-gray-100 bg-gray-50 p-4 space-y-3">
-          {/* 科目一覧 */}
           {rs.courses.length > 0 && (
             <div>
               <p className="text-sm font-medium text-gray-600 mb-2">科目一覧（{rs.courses.length}件）</p>
@@ -363,7 +380,6 @@ export default function RulesPage() {
               </div>
             </div>
           )}
-          {/* ルール一覧 */}
           {rs.rules.length > 0 && (
             <div>
               <p className="text-sm font-medium text-gray-600 mb-2">ルール一覧（{rs.rules.length}件）</p>
@@ -404,6 +420,14 @@ export default function RulesPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+
+        {/* 【バグ4修正】削除エラー表示 */}
+        {deleteError && (
+          <div className="bg-red-50 border border-red-300 rounded-xl p-4 flex justify-between items-start">
+            <p className="text-sm text-red-700">{deleteError}</p>
+            <button onClick={() => setDeleteError(null)} className="text-red-400 hover:text-red-600 ml-3 text-sm">×</button>
+          </div>
+        )}
 
         {/* 自分のルールセット */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -573,7 +597,7 @@ export default function RulesPage() {
                           {showCourseForm === rs.id ? (
                             <div className="border border-gray-200 rounded-xl p-4 space-y-3">
                               <h4 className="text-base font-medium text-gray-700">科目を追加</h4>
-                              <input type="text" placeholder="科目名 *" value={courseName} onChange={e => setCourseName(e.target.value)}
+                              <input type="text" placeholder="科目名 * （省略せず正式名称で入力してください）" value={courseName} onChange={e => setCourseName(e.target.value)}
                                 className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
                               <input type="text" placeholder="科目コード（任意）" value={courseCode} onChange={e => setCourseCode(e.target.value)}
                                 className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -586,7 +610,7 @@ export default function RulesPage() {
                                   </select>
                                 </div>
                                 <div className="flex-1">
-                                  <label className="block text-sm text-gray-500 mb-1">区分</label>
+                                  <label className="block text-sm text-gray-500 mb-1">区分 *</label>
                                   <select value={courseCategoryId} onChange={e => setCourseCategoryId(e.target.value)}
                                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500">
                                     <option value="">未分類</option>
@@ -813,8 +837,6 @@ export default function RulesPage() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-700">他のユーザーの公開ルールセット</h2>
           </div>
-
-          {/* 検索フォーム */}
           <div className="grid grid-cols-2 gap-3 mb-4">
             <input type="text" placeholder="大学名で絞り込み" value={searchUniversity} onChange={e => setSearchUniversity(e.target.value)}
               className="border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />

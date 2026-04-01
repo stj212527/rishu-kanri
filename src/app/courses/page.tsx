@@ -20,6 +20,9 @@ const STATUS_OPTIONS = [
   { value: 'failed', label: '不合格', color: 'bg-red-100 text-red-600' },
 ]
 
+// 【改善5】単位数の選択肢を拡張（0.5〜8単位）
+const CREDIT_OPTIONS = [0.5, 1, 1.5, 2, 3, 4, 5, 6, 8]
+
 type InputMode = 'template' | 'shared' | 'free'
 
 export default function CoursesPage() {
@@ -30,6 +33,10 @@ export default function CoursesPage() {
   const [mySharedCourses, setMySharedCourses] = useState<SharedCourse[]>([])
   const [activeRuleSetId, setActiveRuleSetId] = useState<string | null>(null)
   const [userProfile, setUserProfile] = useState<{ university_name: string, faculty_name: string } | null>(null)
+  // 【バグ3修正】current_year / current_term を取得するために型を拡張
+  const [currentYear, setCurrentYear] = useState<number>(1)
+  const [currentTerm, setCurrentTerm] = useState<number>(1)
+  const [entryYear, setEntryYear] = useState<number>(new Date().getFullYear())
   const [userId, setUserId] = useState('')
 
   const [showAddRecord, setShowAddRecord] = useState(false)
@@ -73,20 +80,35 @@ export default function CoursesPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/'); return }
     setUserId(user.id)
-    const profileRes = await supabase.from('user_profiles').select('active_rule_set_id, university_name, faculty_name').eq('user_id', user.id).single()
+    // 【バグ3修正】current_year, current_term, entry_year も取得
+    const profileRes = await supabase
+      .from('user_profiles')
+      .select('active_rule_set_id, university_name, faculty_name, current_year, current_term, entry_year')
+      .eq('user_id', user.id)
+      .single()
     const ruleSetId = profileRes.data?.active_rule_set_id
     setActiveRuleSetId(ruleSetId || null)
     setUserProfile(profileRes.data ? { university_name: profileRes.data.university_name, faculty_name: profileRes.data.faculty_name } : null)
+    setCurrentYear(profileRes.data?.current_year || 1)
+    setCurrentTerm(profileRes.data?.current_term || 1)
+    setEntryYear(profileRes.data?.entry_year || new Date().getFullYear())
+
     if (ruleSetId) {
       const [coursesRes, categoriesRes, recordsRes] = await Promise.all([
         supabase.from('rule_set_courses').select('*, category:rule_set_categories(*)').eq('rule_set_id', ruleSetId).order('course_name'),
         supabase.from('rule_set_categories').select('*').eq('rule_set_id', ruleSetId).order('sort_order'),
-        supabase.from('user_course_records').select('*, course:rule_set_courses(*)').eq('user_id', user.id).eq('rule_set_id', ruleSetId).order('created_at', { ascending: false }),
+        // 【バグ1修正（dashboard側）】rule_set_id 条件を追加して他ルールセットのrecordを除外
+        supabase.from('user_course_records').select('*, course:rule_set_courses(*)')
+          .eq('user_id', user.id)
+          .eq('rule_set_id', ruleSetId)
+          .order('created_at', { ascending: false }),
       ])
       setCourses(coursesRes.data || [])
       setCategories(categoriesRes.data || [])
       setRecords(recordsRes.data || [])
     }
+
+    // 【バグ1修正】共有科目: 他ユーザーの公開 + 自分のものも含めて取得
     const [sharedRes, mySharedRes] = await Promise.all([
       supabase.from('shared_courses').select('*').eq('is_public', true).neq('created_by', user.id).order('created_at', { ascending: false }),
       supabase.from('shared_courses').select('*').eq('created_by', user.id).order('created_at', { ascending: false }),
@@ -109,11 +131,28 @@ export default function CoursesPage() {
   })
   const displayedPublicCourses = showAllPublic ? filteredPublicCourses : filteredPublicCourses.slice(0, 3)
 
-  const filteredSharedForRecord = sharedCourses.filter(c => {
+  // 【バグ1修正】filteredSharedForRecord: sharedCourses に加えて mySharedCourses も含める
+  const allSharedForRecord = [...sharedCourses, ...mySharedCourses]
+  const filteredSharedForRecord = allSharedForRecord.filter(c => {
     const kMatch = !sharedSearchKeyword || c.course_name.includes(sharedSearchKeyword)
     const uMatch = !sharedSearchUniversity || (c.university_name || '').includes(sharedSearchUniversity)
     return kMatch && uMatch
   })
+
+  // 【バグ3修正】acquiredYear/Term が現在より未来かどうか判定
+  const isFutureTerm = () => {
+    const termToNum = (t: string) => {
+      if (t === '前期') return 1
+      if (t === '後期') return 2
+      if (t === '3学期') return 3
+      return 4
+    }
+    const yearDiff = acquiredYear - entryYear + 1
+    const termNum = termToNum(acquiredTerm)
+    if (yearDiff > currentYear) return true
+    if (yearDiff === currentYear && termNum > currentTerm) return true
+    return false
+  }
 
   const handleAddRecord = async () => {
     if (!activeRuleSetId) return
@@ -121,20 +160,52 @@ export default function CoursesPage() {
     try {
       if (inputMode === 'template') {
         if (!selectedCourseId) return
-        await supabase.from('user_course_records').insert({ user_id: userId, rule_set_id: activeRuleSetId, template_course_id: selectedCourseId, status, acquired_year: acquiredYear, acquired_term: acquiredTerm, grade: grade || null, memo: memo || null })
+
+        // 【バグ2修正】同じ template_course_id の重複チェック
+        const duplicate = records.find(r => r.template_course_id === selectedCourseId)
+        if (duplicate) {
+          alert('この科目はすでに履修記録に登録されています。ステータスを変更する場合は一覧から変更してください。')
+          return
+        }
+
+        await supabase.from('user_course_records').insert({
+          user_id: userId, rule_set_id: activeRuleSetId,
+          template_course_id: selectedCourseId, status,
+          acquired_year: acquiredYear, acquired_term: acquiredTerm,
+          grade: grade || null, memo: memo || null
+        })
       } else if (inputMode === 'shared') {
         if (!selectedSharedCourseId) return
-        const sc = sharedCourses.find(c => c.id === selectedSharedCourseId)
+        const sc = allSharedForRecord.find(c => c.id === selectedSharedCourseId)
         if (!sc) return
-        await supabase.from('user_course_records').insert({ user_id: userId, rule_set_id: activeRuleSetId, shared_course_id: selectedSharedCourseId, custom_course_name: sc.course_name, custom_credits: sc.credits, status, acquired_year: acquiredYear, acquired_term: acquiredTerm, grade: grade || null, memo: memo || null })
+        await supabase.from('user_course_records').insert({
+          user_id: userId, rule_set_id: activeRuleSetId,
+          shared_course_id: selectedSharedCourseId,
+          custom_course_name: sc.course_name, custom_credits: sc.credits,
+          status, acquired_year: acquiredYear, acquired_term: acquiredTerm,
+          grade: grade || null, memo: memo || null
+        })
       } else {
         if (!freeName) return
         if (freeIsPublic) {
-          await supabase.from('shared_courses').insert({ created_by: userId, course_name: freeName, credits: freeCredits, category_name: freeCategoryName || null, university_name: userProfile?.university_name || null, faculty_name: userProfile?.faculty_name || null, is_required: freeIsRequired, note: freeNote || null, is_public: true })
+          await supabase.from('shared_courses').insert({
+            created_by: userId, course_name: freeName, credits: freeCredits,
+            category_name: freeCategoryName || null,
+            university_name: userProfile?.university_name || null,
+            faculty_name: userProfile?.faculty_name || null,
+            is_required: freeIsRequired, note: freeNote || null, is_public: true
+          })
         }
-        await supabase.from('user_course_records').insert({ user_id: userId, rule_set_id: activeRuleSetId, custom_course_name: freeName, custom_credits: freeCredits, status, acquired_year: acquiredYear, acquired_term: acquiredTerm, grade: grade || null, memo: memo || null })
+        await supabase.from('user_course_records').insert({
+          user_id: userId, rule_set_id: activeRuleSetId,
+          custom_course_name: freeName, custom_credits: freeCredits,
+          status, acquired_year: acquiredYear, acquired_term: acquiredTerm,
+          grade: grade || null, memo: memo || null
+        })
       }
-      setSelectedCourseId(''); setSelectedSharedCourseId(''); setFreeName(''); setFreeCredits(2); setFreeCategoryName(''); setFreeIsRequired(false); setFreeNote(''); setFreeIsPublic(false); setGrade(''); setMemo(''); setStatus('completed'); setShowAddRecord(false)
+      setSelectedCourseId(''); setSelectedSharedCourseId(''); setFreeName(''); setFreeCredits(2)
+      setFreeCategoryName(''); setFreeIsRequired(false); setFreeNote(''); setFreeIsPublic(false)
+      setGrade(''); setMemo(''); setStatus('completed'); setShowAddRecord(false)
       fetchData()
     } finally { setLoading(false) }
   }
@@ -143,29 +214,61 @@ export default function CoursesPage() {
     if (!myCourseName) return
     setLoading(true)
     try {
-      await supabase.from('shared_courses').insert({ created_by: userId, course_name: myCourseName, credits: myCourseCredits, category_name: myCourseCategoryName || null, university_name: userProfile?.university_name || null, faculty_name: userProfile?.faculty_name || null, is_required: myCourseIsRequired, note: myCourseNote || null, is_public: myCourseIsPublic })
-      setMyCourseName(''); setMyCourseCredits(2); setMyCourseCategoryName(''); setMyCourseIsRequired(false); setMyCourseNote(''); setMyCourseIsPublic(false); setShowMySharedForm(false)
+      await supabase.from('shared_courses').insert({
+        created_by: userId, course_name: myCourseName, credits: myCourseCredits,
+        category_name: myCourseCategoryName || null,
+        university_name: userProfile?.university_name || null,
+        faculty_name: userProfile?.faculty_name || null,
+        is_required: myCourseIsRequired, note: myCourseNote || null, is_public: myCourseIsPublic
+      })
+      setMyCourseName(''); setMyCourseCredits(2); setMyCourseCategoryName('')
+      setMyCourseIsRequired(false); setMyCourseNote(''); setMyCourseIsPublic(false)
+      setShowMySharedForm(false)
       fetchData()
     } finally { setLoading(false) }
   }
 
+  // 【改善6】コピー時「（コピー）」を削除
   const handleCopyCourse = async (course: SharedCourse) => {
     setLoading(true)
     try {
-      await supabase.from('shared_courses').insert({ created_by: userId, course_name: course.course_name + ' (コピー)', credits: course.credits, category_name: course.category_name, university_name: course.university_name, faculty_name: course.faculty_name, is_required: course.is_required, note: course.note, is_public: false })
+      await supabase.from('shared_courses').insert({
+        created_by: userId,
+        course_name: course.course_name, // ← ' (コピー)' を削除
+        credits: course.credits, category_name: course.category_name,
+        university_name: course.university_name, faculty_name: course.faculty_name,
+        is_required: course.is_required, note: course.note, is_public: false
+      })
       alert('科目をコピーしました')
       fetchData()
     } finally { setLoading(false) }
   }
 
-  const handleUpdateStatus = async (id: string, s: string) => { await supabase.from('user_course_records').update({ status: s }).eq('id', id); fetchData() }
-  const handleDeleteRecord = async (id: string) => { if (!confirm('削除しますか？')) return; await supabase.from('user_course_records').delete().eq('id', id); fetchData() }
-  const handleTogglePublic = async (id: string, cur: boolean) => { await supabase.from('shared_courses').update({ is_public: !cur }).eq('id', id); fetchData() }
-  const handleDeleteMyShared = async (id: string) => { if (!confirm('削除しますか？')) return; await supabase.from('shared_courses').delete().eq('id', id); fetchData() }
+  const handleUpdateStatus = async (id: string, s: string) => {
+    await supabase.from('user_course_records').update({ status: s }).eq('id', id)
+    fetchData()
+  }
+  const handleDeleteRecord = async (id: string) => {
+    if (!confirm('削除しますか？')) return
+    await supabase.from('user_course_records').delete().eq('id', id)
+    fetchData()
+  }
+  const handleTogglePublic = async (id: string, cur: boolean) => {
+    await supabase.from('shared_courses').update({ is_public: !cur }).eq('id', id)
+    fetchData()
+  }
+  const handleDeleteMyShared = async (id: string) => {
+    if (!confirm('削除しますか？')) return
+    await supabase.from('shared_courses').delete().eq('id', id)
+    fetchData()
+  }
 
   const getCourseName = (r: UserCourseRecord) => r.course?.course_name || r.custom_course_name || '不明'
   const getCourseCredits = (r: UserCourseRecord) => r.course?.credits || r.custom_credits || 0
   const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i)
+
+  // 【バグ3修正】completedが選択不可かどうかを判定
+  const isCompletedDisabled = status === 'completed' && isFutureTerm()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -232,6 +335,7 @@ export default function CoursesPage() {
                     <input type="text" placeholder="科目名で検索" value={sharedSearchKeyword} onChange={e => setSharedSearchKeyword(e.target.value)}
                       className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
+                  {/* 【バグ1修正】filteredSharedForRecord（自分の科目も含む）を表示 */}
                   <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
                     {filteredSharedForRecord.length === 0 ? (
                       <p className="text-base text-gray-400 p-4 text-center">共有科目がありません</p>
@@ -248,7 +352,8 @@ export default function CoursesPage() {
                             </div>
                             {c.university_name && <p className="text-sm text-gray-400 mt-0.5">{c.university_name} {c.faculty_name}</p>}
                           </div>
-                          <button onClick={e => { e.preventDefault(); setShowSharedDetail(showSharedDetail === c.id ? null : c.id) }} className="text-sm text-blue-400 hover:text-blue-600 whitespace-nowrap">
+                          <button onClick={e => { e.preventDefault(); setShowSharedDetail(showSharedDetail === c.id ? null : c.id) }}
+                            className="text-sm text-blue-400 hover:text-blue-600 whitespace-nowrap">
                             {showSharedDetail === c.id ? '閉じる' : '詳細'}
                           </button>
                         </label>
@@ -274,9 +379,10 @@ export default function CoursesPage() {
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <label className="block text-sm text-gray-500 mb-1">単位数</label>
+                      {/* 【改善5】単位数の選択肢を拡張 */}
                       <select value={freeCredits} onChange={e => setFreeCredits(Number(e.target.value))}
                         className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}単位</option>)}
+                        {CREDIT_OPTIONS.map(n => <option key={n} value={n}>{n}単位</option>)}
                       </select>
                     </div>
                     <div className="flex-1">
@@ -285,6 +391,7 @@ export default function CoursesPage() {
                         className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                   </div>
+                  <p className="text-xs text-gray-400">※ TOEICなどの特例単位は科目名に「英語免除」などと記入し、該当区分を入力してください</p>
                   <input type="text" placeholder="備考（任意）" value={freeNote} onChange={e => setFreeNote(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -306,6 +413,7 @@ export default function CoursesPage() {
                   {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
               </div>
+
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label className="block text-sm text-gray-500 mb-1">年度</label>
@@ -322,13 +430,27 @@ export default function CoursesPage() {
                   </select>
                 </div>
               </div>
+
+              {/* 【バグ3修正】未来学期で「取得済み」を選択している場合に警告表示 */}
+              {isCompletedDisabled && (
+                <p className="text-sm text-orange-600 bg-orange-50 rounded-lg px-3 py-2">
+                  ⚠ 未来の学期では「取得済み」は選択できません。「履修予定」または「履修中」に変更してください。
+                </p>
+              )}
+
               <input type="text" placeholder="成績（任意）例：A、優" value={grade} onChange={e => setGrade(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
               <textarea placeholder="備考（任意）" value={memo} onChange={e => setMemo(e.target.value)} rows={2}
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
               <div className="flex gap-3">
                 <button onClick={handleAddRecord}
-                  disabled={loading || (inputMode === 'template' && !selectedCourseId) || (inputMode === 'shared' && !selectedSharedCourseId) || (inputMode === 'free' && !freeName)}
+                  disabled={
+                    loading ||
+                    isCompletedDisabled || // 【バグ3修正】未来の取得済みは保存不可
+                    (inputMode === 'template' && !selectedCourseId) ||
+                    (inputMode === 'shared' && !selectedSharedCourseId) ||
+                    (inputMode === 'free' && !freeName)
+                  }
                   className="flex-1 bg-blue-600 text-white text-base py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
                   {loading ? '記録中...' : '記録する'}
                 </button>
@@ -431,9 +553,10 @@ export default function CoursesPage() {
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label className="block text-sm text-gray-500 mb-1">単位数</label>
+                  {/* 【改善5】単位数の選択肢を拡張 */}
                   <select value={myCourseCredits} onChange={e => setMyCourseCredits(Number(e.target.value))}
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}単位</option>)}
+                    {CREDIT_OPTIONS.map(n => <option key={n} value={n}>{n}単位</option>)}
                   </select>
                 </div>
                 <div className="flex-1">

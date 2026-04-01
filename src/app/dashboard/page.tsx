@@ -39,24 +39,31 @@ export default function Dashboard() {
       setProfile(prof)
       const currentKey = prof.current_year + '-' + prof.current_term
       setExpandedCards(new Set([currentKey]))
-      const [recordsRes, notifRes] = await Promise.all([
-        supabase.from('user_course_records').select('*, course:rule_set_courses(*)').eq('user_id', user.id),
+
+      const [notifRes] = await Promise.all([
         supabase.from('rule_set_notifications').select('*').eq('user_id', user.id).eq('is_read', false),
       ])
-      setRecords(recordsRes.data || [])
       setNotifications(notifRes.data || [])
+
       if (prof.active_rule_set_id) {
-        const [ruleSetRes, coursesRes, rulesRes, semRes] = await Promise.all([
+        const [ruleSetRes, coursesRes, rulesRes, semRes, recordsRes] = await Promise.all([
           supabase.from('rule_sets').select('*').eq('id', prof.active_rule_set_id).single(),
           supabase.from('rule_set_courses').select('*').eq('rule_set_id', prof.active_rule_set_id),
           supabase.from('rule_set_rules').select('*').eq('rule_set_id', prof.active_rule_set_id),
           supabase.from('semester_rules').select('*').eq('rule_set_id', prof.active_rule_set_id).order('year_num').order('term_num'),
+          // 【バグ1修正】rule_set_id 条件を追加して、アクティブなルールセットのrecordのみ取得
+          supabase.from('user_course_records')
+            .select('*, course:rule_set_courses(*)')
+            .eq('user_id', user.id)
+            .eq('rule_set_id', prof.active_rule_set_id),
         ])
         if (ruleSetRes.data) setActiveRuleSet(ruleSetRes.data)
         setCourses(coursesRes.data || [])
         setRules(rulesRes.data || [])
         setSemesterRules(semRes.data || [])
-        setResults(evaluateRules(rulesRes.data || [], coursesRes.data || [], recordsRes.data || []))
+        const fetchedRecords = recordsRes.data || []
+        setRecords(fetchedRecords)
+        setResults(evaluateRules(rulesRes.data || [], coursesRes.data || [], fetchedRecords))
       }
       setLoading(false)
     }
@@ -145,7 +152,6 @@ export default function Dashboard() {
   const curYear = profile?.current_year || 1
   const curTerm = profile?.current_term || 1
 
-  // 現在の学期だけ、またはすべての学期
   const semesterList: { year: number; term: number }[] = []
   for (let y = 1; y <= yearsOfStudy; y++) {
     for (let t = 1; t <= termsPerYear; t++) {
@@ -175,7 +181,6 @@ export default function Dashboard() {
             </div>
             <button onClick={handleSignOut} className="text-sm text-gray-400 hover:text-gray-600">ログアウト</button>
           </div>
-          {/* タブナビゲーション */}
           <div className="flex gap-1 -mb-px">
             {NAV_TABS.map(tab => (
               <Link key={tab.href} href={tab.href}
@@ -221,6 +226,21 @@ export default function Dashboard() {
           <Link href="/rules" className="text-base text-blue-500 hover:text-blue-700">変更する</Link>
         </div>
 
+        {/* 【改善7】卒業進捗バーをサマリーカードの上に移動 */}
+        {totalRequiredCredits && (
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-base font-semibold text-gray-700">卒業までの進捗</p>
+              <p className="text-base text-gray-500">あと <span className="text-lg font-bold text-blue-600">{Math.max(0, totalRequiredCredits - totalCredits)}</span> 単位</p>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-3">
+              <div className="bg-blue-500 h-3 rounded-full transition-all"
+                style={{ width: Math.min(100, Math.round(totalCredits / totalRequiredCredits * 100)) + '%' }} />
+            </div>
+            <p className="text-xs text-gray-400 mt-1 text-right">{Math.min(100, Math.round(totalCredits / totalRequiredCredits * 100))}%</p>
+          </div>
+        )}
+
         {/* サマリーカード */}
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
@@ -237,21 +257,6 @@ export default function Dashboard() {
             <p className="text-sm text-gray-500 mt-1">条件達成</p>
           </div>
         </div>
-
-        {/* 卒業進捗バー */}
-        {totalRequiredCredits && (
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-base font-semibold text-gray-700">卒業までの進捗</p>
-              <p className="text-base text-gray-500">あと <span className="text-lg font-bold text-blue-600">{Math.max(0, totalRequiredCredits - totalCredits)}</span> 単位</p>
-            </div>
-            <div className="w-full bg-gray-100 rounded-full h-3">
-              <div className="bg-blue-500 h-3 rounded-full transition-all"
-                style={{ width: Math.min(100, Math.round(totalCredits / totalRequiredCredits * 100)) + '%' }} />
-            </div>
-            <p className="text-xs text-gray-400 mt-1 text-right">{Math.min(100, Math.round(totalCredits / totalRequiredCredits * 100))}%</p>
-          </div>
-        )}
 
         {/* 未履修必修 */}
         {missingRequired.length > 0 && (
@@ -387,9 +392,20 @@ export default function Dashboard() {
           </div>
         )}
 
-        <p className="text-xs text-gray-400 text-center pb-4">
-          本ツールは補助ツールです。必ず大学公式の履修要覧をご確認ください。
-        </p>
+        {/* 【改善8】フッター：問い合わせフォームリンク付き */}
+        <div className="text-center pb-4 space-y-1">
+          <p className="text-xs text-gray-400">
+            本ツールは補助ツールです。必ず大学公式の履修要覧をご確認ください。
+          </p>
+          <a
+            href="https://forms.gle/YOUR_FORM_ID"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-400 hover:text-blue-600 underline"
+          >
+            お問い合わせ・バグ報告はこちら
+          </a>
+        </div>
       </main>
     </div>
   )
