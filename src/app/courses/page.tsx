@@ -46,12 +46,16 @@ export default function CoursesPage() {
   const [freeName, setFreeName] = useState('')
   const [freeCredits, setFreeCredits] = useState(2)
   const [freeCategoryName, setFreeCategoryName] = useState('')
+  const [freeCategoryId, setFreeCategoryId] = useState('') // 【修正8】ルールセット区分から選択
   const [freeIsRequired, setFreeIsRequired] = useState(false)
   const [freeNote, setFreeNote] = useState('')
   const [freeIsPublic, setFreeIsPublic] = useState(false)
   const [status, setStatus] = useState('completed')
   const [acquiredYear, setAcquiredYear] = useState(new Date().getFullYear())
   const [acquiredTerm, setAcquiredTerm] = useState('前期')
+  // 【修正1】曜日・時間帯の入力
+  const [dayOfWeek, setDayOfWeek] = useState('')
+  const [periodTime, setPeriodTime] = useState('')
   const [grade, setGrade] = useState('')
   const [memo, setMemo] = useState('')
   const [sharedSearchKeyword, setSharedSearchKeyword] = useState('')
@@ -67,6 +71,7 @@ export default function CoursesPage() {
   const [myCourseIsPublic, setMyCourseIsPublic] = useState(false)
 
   const [searchKeyword, setSearchKeyword] = useState('')
+  // 【修正2】基本情報の大学名を自動入力（後から変更可能）
   const [searchUniversity, setSearchUniversity] = useState('')
   const [searchCategory, setSearchCategory] = useState('')
   const [showAllPublic, setShowAllPublic] = useState(false)
@@ -92,6 +97,10 @@ export default function CoursesPage() {
     setCurrentYear(profileRes.data?.current_year || 1)
     setCurrentTerm(profileRes.data?.current_term || 1)
     setEntryYear(profileRes.data?.entry_year || new Date().getFullYear())
+    // 【修正2】大学名を自動入力（初回のみ。空の場合のみセット）
+    if (profileRes.data?.university_name) {
+      setSearchUniversity(prev => prev === '' ? profileRes.data.university_name : prev)
+    }
 
     if (ruleSetId) {
       const [coursesRes, categoriesRes, recordsRes] = await Promise.all([
@@ -172,6 +181,7 @@ export default function CoursesPage() {
           user_id: userId, rule_set_id: activeRuleSetId,
           template_course_id: selectedCourseId, status,
           acquired_year: acquiredYear, acquired_term: acquiredTerm,
+          day_of_week: dayOfWeek || null, period_time: periodTime || null,
           grade: grade || null, memo: memo || null
         })
       } else if (inputMode === 'shared') {
@@ -183,6 +193,7 @@ export default function CoursesPage() {
           shared_course_id: selectedSharedCourseId,
           custom_course_name: sc.course_name, custom_credits: sc.credits,
           status, acquired_year: acquiredYear, acquired_term: acquiredTerm,
+          day_of_week: dayOfWeek || null, period_time: periodTime || null,
           grade: grade || null, memo: memo || null
         })
       } else {
@@ -200,12 +211,13 @@ export default function CoursesPage() {
           user_id: userId, rule_set_id: activeRuleSetId,
           custom_course_name: freeName, custom_credits: freeCredits,
           status, acquired_year: acquiredYear, acquired_term: acquiredTerm,
+          day_of_week: dayOfWeek || null, period_time: periodTime || null,
           grade: grade || null, memo: memo || null
         })
       }
       setSelectedCourseId(''); setSelectedSharedCourseId(''); setFreeName(''); setFreeCredits(2)
-      setFreeCategoryName(''); setFreeIsRequired(false); setFreeNote(''); setFreeIsPublic(false)
-      setGrade(''); setMemo(''); setStatus('completed'); setShowAddRecord(false)
+      setFreeCategoryName(''); setFreeCategoryId(''); setFreeIsRequired(false); setFreeNote(''); setFreeIsPublic(false)
+      setGrade(''); setMemo(''); setStatus('completed'); setDayOfWeek(''); setPeriodTime(''); setShowAddRecord(false)
       fetchData()
     } finally { setLoading(false) }
   }
@@ -276,7 +288,7 @@ export default function CoursesPage() {
         <div className="max-w-3xl mx-auto px-4">
           <div className="flex justify-between items-center py-4">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">履修管理ツール</h1>
+              <h1 className="text-xl font-bold text-gray-900">Rism</h1>
               <p className="text-sm text-gray-500">取得済み単位：{totalCredits}単位</p>
             </div>
           </div>
@@ -386,9 +398,22 @@ export default function CoursesPage() {
                       </select>
                     </div>
                     <div className="flex-1">
-                      <label className="block text-sm text-gray-500 mb-1">区分名（任意）</label>
-                      <input type="text" placeholder="例：専門必修" value={freeCategoryName} onChange={e => setFreeCategoryName(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      {/* 【修正8】区分をルールセットのカテゴリselectに変更（カテゴリがある場合）、なければテキスト入力 */}
+                      <label className="block text-sm text-gray-500 mb-1">区分（任意）</label>
+                      {categories.length > 0 ? (
+                        <select value={freeCategoryId} onChange={e => {
+                          setFreeCategoryId(e.target.value)
+                          const cat = categories.find(c => c.id === e.target.value)
+                          setFreeCategoryName(cat?.name || '')
+                        }}
+                          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="">未分類</option>
+                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      ) : (
+                        <input type="text" placeholder="例：専門必修" value={freeCategoryName} onChange={e => setFreeCategoryName(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      )}
                     </div>
                   </div>
                   <p className="text-xs text-gray-400">※ TOEICなどの特例単位は科目名に「英語免除」などと記入し、該当区分を入力してください</p>
@@ -427,6 +452,26 @@ export default function CoursesPage() {
                   <select value={acquiredTerm} onChange={e => setAcquiredTerm(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500">
                     {['前期', '後期', '通年', '集中'].map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* 【修正1】曜日・時間帯の入力（カレンダー機能への布石） */}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-sm text-gray-500 mb-1">曜日（任意）</label>
+                  <select value={dayOfWeek} onChange={e => setDayOfWeek(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">未設定</option>
+                    {['月', '火', '水', '木', '金', '土', '日', '集中'].map(d => <option key={d} value={d}>{d}曜日</option>)}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm text-gray-500 mb-1">時限（任意）</label>
+                  <select value={periodTime} onChange={e => setPeriodTime(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">未設定</option>
+                    {['1限', '2限', '3限', '4限', '5限', '6限', '7限'].map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
               </div>
@@ -481,6 +526,9 @@ export default function CoursesPage() {
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
                         <span className="text-sm text-gray-400">{getCourseCredits(record)}単位</span>
                         {record.acquired_year && <span className="text-sm text-gray-400">{record.acquired_year}年度 {record.acquired_term}</span>}
+                        {(record.day_of_week || record.period_time) && (
+                          <span className="text-sm text-gray-400">{record.day_of_week}{record.period_time}</span>
+                        )}
                         {record.grade && <span className="text-sm bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{record.grade}</span>}
                       </div>
                       {record.memo && <p className="text-sm text-gray-500 mt-1">{record.memo}</p>}

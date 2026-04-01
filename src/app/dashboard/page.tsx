@@ -169,7 +169,7 @@ export default function Dashboard() {
         <div className="max-w-3xl mx-auto px-4">
           <div className="flex justify-between items-center py-4">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">履修管理ツール</h1>
+              <h1 className="text-xl font-bold text-gray-900">Rism</h1>
               {profile && (
                 <p className="text-sm text-gray-500">
                   {profile.university_name} {profile.faculty_name}

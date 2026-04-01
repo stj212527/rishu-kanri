@@ -82,12 +82,26 @@ export default function RulesPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  // 【修正3・4】基本情報を保持するstate
+  const [profileData, setProfileData] = useState<{ university_name: string, faculty_name: string, department_name: string, entry_year: number } | null>(null)
+
   const fetchData = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/'); return }
     setCurrentUserId(user.id)
-    const profileRes = await supabase.from('user_profiles').select('active_rule_set_id').eq('user_id', user.id).single()
+    // 【修正3・4】基本情報を全取得
+    const profileRes = await supabase.from('user_profiles').select('active_rule_set_id, university_name, faculty_name, department_name, entry_year').eq('user_id', user.id).single()
     setActiveRuleSetId(profileRes.data?.active_rule_set_id || null)
+    if (profileRes.data) {
+      setProfileData({
+        university_name: profileRes.data.university_name || '',
+        faculty_name: profileRes.data.faculty_name || '',
+        department_name: profileRes.data.department_name || '',
+        entry_year: profileRes.data.entry_year || new Date().getFullYear(),
+      })
+      // 【修正3】公開ルールセットの大学名絞り込みを自動入力（初回のみ）
+      setSearchUniversity(prev => prev === '' ? (profileRes.data.university_name || '') : prev)
+    }
     const myRes = await supabase.from('rule_sets').select('*').eq('created_by', user.id).order('created_at')
     const mySets = myRes.data || []
     const fullSets = await Promise.all(mySets.map(async (rs) => {
@@ -403,7 +417,7 @@ export default function RulesPage() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4">
           <div className="flex justify-between items-center py-4">
-            <h1 className="text-xl font-bold text-gray-900">履修管理ツール</h1>
+            <h1 className="text-xl font-bold text-gray-900">Rism</h1>
           </div>
           <div className="flex gap-1 -mb-px">
             {NAV_TABS.map(tab => (
@@ -433,15 +447,27 @@ export default function RulesPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-700">自分のルールセット</h2>
-            <button onClick={() => { setEditingSetId(null); setSetTitle(''); setSetUniversity(''); setSetFaculty(''); setSetDepartment(''); setSetDescription(''); setSetIsPublic(false); setSetYears(4); setSetTerms(2); setShowSetForm(!showSetForm) }}
+            <button onClick={() => {
+                // 【修正4】新規作成時に基本情報を自動入力
+                setEditingSetId(null)
+                setSetTitle('')
+                setSetUniversity(profileData?.university_name || '')
+                setSetFaculty(profileData?.faculty_name || '')
+                setSetDepartment(profileData?.department_name || '')
+                setSetEntryYear(profileData?.entry_year || new Date().getFullYear())
+                setSetDescription(''); setSetIsPublic(false); setSetYears(4); setSetTerms(2)
+                setShowSetForm(!showSetForm)
+              }}
               className="bg-blue-600 text-white text-base px-5 py-2.5 rounded-lg hover:bg-blue-700 transition-colors">
               + 新規作成
             </button>
           </div>
 
-          {showSetForm && (
+          {/* 新規作成フォーム（新規のみ・編集は各カード内に統合） */}
+          {showSetForm && !editingSetId && (
             <div className="border border-gray-200 rounded-xl p-5 mb-4 space-y-3">
-              <h3 className="text-base font-semibold text-gray-700">{editingSetId ? 'ルールセットを編集' : '新しいルールセット'}</h3>
+              <h3 className="text-base font-semibold text-gray-700">新しいルールセット</h3>
+              {/* 【修正4】基本情報から自動入力済み（後から変更可能） */}
               <input type="text" placeholder="ルールセット名 *" value={setTitle} onChange={e => setSetTitle(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
               <div className="flex gap-3">
@@ -483,7 +509,7 @@ export default function RulesPage() {
               <div className="flex gap-3">
                 <button onClick={handleCreateSet} disabled={loading || !setTitle}
                   className="flex-1 bg-blue-600 text-white text-base py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                  {loading ? '保存中...' : editingSetId ? '変更を保存' : '作成する'}
+                  {loading ? '保存中...' : '作成する'}
                 </button>
                 <button onClick={() => { setShowSetForm(false); setEditingSetId(null) }}
                   className="flex-1 border border-gray-300 text-gray-600 text-base py-3 rounded-lg hover:bg-gray-50 transition-colors">
@@ -515,17 +541,71 @@ export default function RulesPage() {
                       {activeRuleSetId !== rs.id && (
                         <button onClick={() => handleActivate(rs.id)} className="text-sm text-blue-500 hover:text-blue-700">使用する</button>
                       )}
-                      <button onClick={() => handleEditSet(rs)} className="text-sm text-gray-500 hover:text-gray-700">編集</button>
-                      <button onClick={() => handleDeleteSet(rs.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
-                      <button onClick={() => setExpandedSetId(expandedSetId === rs.id ? null : rs.id)}
-                        className="text-sm text-gray-500 hover:text-gray-700">
-                        {expandedSetId === rs.id ? '閉じる' : '詳細'}
+                      {/* 【修正5】「編集」1ボタンで基本情報フォーム＋3タブを一緒に展開。「詳細」ボタンは削除 */}
+                      <button onClick={() => {
+                        if (expandedSetId === rs.id) {
+                          setExpandedSetId(null); setShowSetForm(false); setEditingSetId(null)
+                        } else {
+                          handleEditSet(rs); setExpandedSetId(rs.id)
+                        }
+                      }} className="text-sm text-gray-500 hover:text-gray-700">
+                        {expandedSetId === rs.id ? '閉じる' : '編集'}
                       </button>
+                      <button onClick={() => handleDeleteSet(rs.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
                     </div>
                   </div>
 
                   {expandedSetId === rs.id && (
                     <div className="mt-4 space-y-4">
+
+                      {/* 【修正5】基本情報フォームをここに統合 */}
+                      <div className="border border-blue-100 rounded-xl p-4 bg-blue-50 space-y-3">
+                        <h3 className="text-sm font-semibold text-blue-700">基本情報</h3>
+                        <input type="text" placeholder="ルールセット名 *" value={setTitle} onChange={e => setSetTitle(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                        <div className="flex gap-3">
+                          <input type="text" placeholder="大学名" value={setUniversity} onChange={e => setSetUniversity(e.target.value)}
+                            className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                          <input type="text" placeholder="学部名" value={setFaculty} onChange={e => setSetFaculty(e.target.value)}
+                            className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                        </div>
+                        <div className="flex gap-3">
+                          <input type="text" placeholder="学科名" value={setDepartment} onChange={e => setSetDepartment(e.target.value)}
+                            className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                          <select value={setEntryYear} onChange={e => setSetEntryYear(Number(e.target.value))}
+                            className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            {years.map(y => <option key={y} value={y}>{y}年度入学</option>)}
+                          </select>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="flex-1">
+                            <label className="block text-xs text-gray-500 mb-1">在籍年数</label>
+                            <select value={setYears} onChange={e => setSetYears(Number(e.target.value))}
+                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                              {[2,3,4,6].map(y => <option key={y} value={y}>{y}年制</option>)}
+                            </select>
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-xs text-gray-500 mb-1">年間学期数</label>
+                            <select value={setTerms} onChange={e => setSetTerms(Number(e.target.value))}
+                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                              {[2,3,4].map(t => <option key={t} value={t}>{t}学期制</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <textarea placeholder="説明（任意）" value={setDescription} onChange={e => setSetDescription(e.target.value)} rows={2}
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={setIsPublic} onChange={e => setSetIsPublic(e.target.checked)} className="w-4 h-4 rounded" />
+                          <span className="text-sm text-gray-700">このルールセットを他のユーザーに公開する</span>
+                        </label>
+                        <button onClick={handleCreateSet} disabled={loading || !setTitle}
+                          className="w-full bg-blue-600 text-white text-base py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                          {loading ? '保存中...' : '基本情報を保存'}
+                        </button>
+                      </div>
+
+                      {/* 区分・科目 / ルール / 進級条件 タブ */}
                       <div className="flex gap-2">
                         {(['courses', 'rules', 'semester'] as const).map(tab => (
                           <button key={tab} onClick={() => setActiveInnerTab(prev => ({ ...prev, [rs.id]: tab }))}
