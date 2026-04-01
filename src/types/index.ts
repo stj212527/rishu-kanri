@@ -69,6 +69,8 @@ export type UserCourseRecord = {
   status: 'completed' | 'in_progress' | 'planned' | 'failed'
   acquired_year: number | null
   acquired_term: string | null
+  day_of_week: string | null
+  period_time: string | null
   grade: string | null
   note: string | null
   shared_course_id: string | null
