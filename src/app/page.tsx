@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 
@@ -15,8 +15,11 @@ export default function LandingPage() {
             <span className="text-slate-300 font-normal">|</span>
             <span className="text-slate-400 font-normal text-base">Rism</span>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm text-slate-500 hover:text-slate-900 transition-colors font-medium">
+          <div className="flex items-center gap-4">
+            <Link href="/help" className="text-base font-semibold text-slate-800 hover:text-slate-950 transition-colors">
+              使い方はこちら
+            </Link>
+            <Link href="/login" className="text-base font-semibold text-slate-800 hover:text-slate-950 transition-colors">
               ログイン
             </Link>
             <Link href="/login" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 active:scale-95">

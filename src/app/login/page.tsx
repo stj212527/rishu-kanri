@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
@@ -39,8 +39,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-md p-8">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-md items-center justify-end px-4 py-3 sm:max-w-lg">
+          <Link href="/help" className="text-base font-semibold text-gray-800 hover:text-gray-950">
+            使い方はこちら
+          </Link>
+        </div>
+      </header>
+      <div className="flex flex-1 items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-md p-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Rism</h1>
         <p className="text-base text-gray-500 mb-8">卒業要件を可視化して、履修漏れを防ごう</p>
         <div className="space-y-4">
@@ -86,7 +94,7 @@ export default function LoginPage() {
           </button>
           {/* ヘルプページへのリンク */}
           <div className="text-center">
-            <Link href="/help" className="text-sm text-blue-400 hover:text-blue-600">
+            <Link href="/help" className="text-base font-semibold text-gray-800 hover:text-gray-950">
               使い方ガイドを見る →
             </Link>
           </div>
@@ -95,6 +103,7 @@ export default function LoginPage() {
           本ツールは履修管理を補助するためのものであり、正式な卒業判定を行うものではありません。
           必ず大学公式の履修要覧をご確認ください。
         </p>
+        </div>
       </div>
     </div>
   )

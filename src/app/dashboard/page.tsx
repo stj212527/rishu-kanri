@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
@@ -179,7 +179,14 @@ export default function Dashboard() {
                 </p>
               )}
             </div>
-            <button onClick={handleSignOut} className="text-sm text-gray-400 hover:text-gray-600">ログアウト</button>
+            <div className="flex items-center gap-4 shrink-0">
+              <Link href="/help" className="text-base font-semibold text-gray-800 hover:text-gray-950">
+                使い方はこちら
+              </Link>
+              <button type="button" onClick={handleSignOut} className="text-base font-semibold text-gray-800 hover:text-gray-950">
+                ログアウト
+              </button>
+            </div>
           </div>
           <div className="flex gap-1 -mb-px">
             {NAV_TABS.map(tab => (
