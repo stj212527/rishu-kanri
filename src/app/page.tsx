@@ -16,7 +16,7 @@ export default function LandingPage() {
             <span className="text-slate-400 font-normal text-base">Rism</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/help" className="text-base font-semibold text-slate-800 hover:text-slate-950 transition-colors">
+            <Link href="/help" className="text-base font-semibold text-sky-600 hover:text-sky-800 transition-colors">
               使い方はこちら
             </Link>
             <Link href="/login" className="text-base font-semibold text-slate-800 hover:text-slate-950 transition-colors">

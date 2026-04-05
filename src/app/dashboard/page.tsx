@@ -180,7 +180,7 @@ export default function Dashboard() {
               )}
             </div>
             <div className="flex items-center gap-4 shrink-0">
-              <Link href="/help" className="text-base font-semibold text-gray-800 hover:text-gray-950">
+              <Link href="/help" className="text-base font-semibold text-sky-600 hover:text-sky-800">
                 使い方はこちら
               </Link>
               <button type="button" onClick={handleSignOut} className="text-base font-semibold text-gray-800 hover:text-gray-950">

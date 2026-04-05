@@ -73,7 +73,7 @@ export default function SetupPage() {
         <div className="max-w-3xl mx-auto px-4">
           <div className="flex justify-between items-center py-4 gap-4">
             <h1 className="text-xl font-bold text-gray-900">履修管理ツール</h1>
-            <Link href="/help" className="text-base font-semibold text-gray-800 hover:text-gray-950 shrink-0">
+            <Link href="/help" className="text-base font-semibold text-sky-600 hover:text-sky-800 shrink-0">
               使い方はこちら
             </Link>
           </div>

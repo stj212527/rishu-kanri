@@ -42,7 +42,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex max-w-md items-center justify-end px-4 py-3 sm:max-w-lg">
-          <Link href="/help" className="text-base font-semibold text-gray-800 hover:text-gray-950">
+          <Link href="/help" className="text-base font-semibold text-sky-600 hover:text-sky-800">
             使い方はこちら
           </Link>
         </div>

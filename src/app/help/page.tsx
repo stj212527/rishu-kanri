@@ -44,7 +44,7 @@ export default function HelpPage() {
         <div className="max-w-3xl mx-auto px-4">
           <div className="flex justify-between items-center py-4 gap-4">
             <h1 className="text-xl font-bold text-gray-900">Rism</h1>
-            <span className="text-base font-semibold text-gray-800 shrink-0" aria-current="page">
+            <span className="text-base font-semibold text-sky-600 shrink-0" aria-current="page">
               使い方はこちら
             </span>
           </div>
