@@ -46,8 +46,10 @@ export default function LandingPage() {
                 不足単位や必修漏れを確認できる履修管理ツールです。
               </p>
               <div className="mt-8 flex items-center gap-4">
-                <Link href="/login"
-                  className="rounded-xl bg-blue-600 px-7 py-3 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 active:scale-95">
+                <Link
+                  href="/login"
+                  className="rounded-xl bg-blue-600 px-7 py-3 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 active:scale-95"
+                >
                   無料で始める →
                 </Link>
                 <span className="text-sm text-slate-400">登録無料・メールアドレスのみ</span>
@@ -131,8 +133,8 @@ export default function LandingPage() {
               { step: '02', title: '履修済み科目を登録する', desc: 'これまでに修得した科目を入力します。共有科目から選ぶこともできます。' },
               { step: '03', title: '進捗を確認する', desc: '不足単位・必修漏れ・進級条件の達成状況をダッシュボードで確認できます。' },
             ].map(s => (
-              <div key={s.step} className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
-                <div className="text-4xl font-black text-slate-100 leading-none select-none">{s.step}</div>
+              <div key={s.step} className="rounded-2xl border border-sky-100 bg-sky-50 p-7 shadow-sm">
+                <div className="text-4xl font-black text-sky-300 leading-none select-none">{s.step}</div>
                 <h3 className="mt-4 text-base font-bold text-slate-900">{s.title}</h3>
                 <p className="mt-3 text-sm leading-7 text-slate-500">{s.desc}</p>
               </div>
@@ -158,8 +160,10 @@ export default function LandingPage() {
               最終確認は必ず大学公式の履修要覧でご確認ください。
             </div>
             <div className="mt-8">
-              <Link href="/login"
-                className="inline-flex rounded-xl bg-blue-600 px-7 py-3 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 active:scale-95">
+              <Link
+                href="/login"
+                className="inline-flex rounded-xl bg-blue-600 px-7 py-3 text-sm font-semibold text-white shadow-md shadow-blue-200 transition hover:bg-blue-700 active:scale-95"
+              >
                 無料で始める →
               </Link>
             </div>

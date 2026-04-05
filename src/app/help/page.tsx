@@ -1,0 +1,249 @@
+'use client'
+
+import Link from 'next/link'
+
+const NAV_TABS = [
+  { href: '/dashboard', label: 'ホーム' },
+  { href: '/courses', label: '科目・履修' },
+  { href: '/rules', label: 'ルール管理' },
+  { href: '/setup', label: '基本情報' },
+]
+
+const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+    <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
+    {children}
+  </div>
+)
+
+const Step = ({ num, title, desc }: { num: number; title: string; desc: string }) => (
+  <div className="flex gap-3">
+    <div className="flex-shrink-0 w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">{num}</div>
+    <div>
+      <p className="text-base font-medium text-gray-800">{title}</p>
+      <p className="text-sm text-gray-500 mt-0.5">{desc}</p>
+    </div>
+  </div>
+)
+
+const QA = ({ q, a }: { q: string; a: string }) => (
+  <div className="border border-gray-100 rounded-lg p-4">
+    <p className="text-base font-medium text-gray-800 mb-1">Q. {q}</p>
+    <p className="text-sm text-gray-600">A. {a}</p>
+  </div>
+)
+
+const Tag = ({ text, color }: { text: string; color: string }) => (
+  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${color}`}>{text}</span>
+)
+
+export default function HelpPage() {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-3xl mx-auto px-4">
+          <div className="flex justify-between items-center py-4">
+            <h1 className="text-xl font-bold text-gray-900">Rism</h1>
+          </div>
+          <div className="flex gap-1 -mb-px">
+            {NAV_TABS.map(tab => (
+              <Link key={tab.href} href={tab.href}
+                className="px-4 py-2.5 text-base font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors">
+                {tab.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+
+        {/* ヒーロー */}
+        <div className="bg-blue-600 rounded-2xl p-6 text-white">
+          <h2 className="text-2xl font-bold mb-1">使い方ガイド</h2>
+          <p className="text-blue-100 text-base">Rismは大学の卒業要件・進級要件を自分でルール登録して、履修状況を可視化するツールです。</p>
+        </div>
+
+        {/* はじめ方 */}
+        <Section title="📋 はじめ方（4ステップ）">
+          <div className="space-y-4">
+            <Step num={1} title="基本情報を設定する" desc="「基本情報」タブから大学名・学部名・学科名・入学年度・現在の学年・学期を入力します。" />
+            <Step num={2} title="ルールセットを作成する" desc="「ルール管理」タブで「+ 新規作成」を押します。大学・学部情報は基本情報から自動入力されます。" />
+            <Step num={3} title="区分・科目・ルールを登録する" desc="ルールセットを編集して、区分（専門必修・外国語など）、科目、卒業要件のルールを登録します。" />
+            <Step num={4} title="履修記録を入力する" desc="「科目・履修」タブで履修済みの科目を記録します。ダッシュボードに進捗が自動表示されます。" />
+          </div>
+        </Section>
+
+        {/* ルール管理 */}
+        <Section title="⚙️ ルール管理ページの使い方">
+          <div className="space-y-3">
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <p className="text-sm font-semibold text-gray-700">ルールセットの構造</p>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>📁 <span className="font-medium">ルールセット</span>（例：2024年度 神奈川大学 工学部 経営工学科）</p>
+                <p className="ml-4">📂 <span className="font-medium">区分</span>（例：専門必修・外国語・A群）</p>
+                <p className="ml-8">📄 <span className="font-medium">科目</span>（例：線形代数学・経営学概論）</p>
+                <p className="ml-4">📏 <span className="font-medium">ルール</span>（例：総124単位以上・外国語4単位以上）</p>
+                <p className="ml-4">📅 <span className="font-medium">進級条件</span>（例：2年生への進級条件：累積30単位以上）</p>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-sm font-semibold text-gray-700 mb-2">登録できる5種類のルール</p>
+              <div className="space-y-2">
+                {[
+                  { label: '総取得単位の最低条件', desc: '卒業に必要な合計単位数を設定します。例：124単位以上' },
+                  { label: '区分別の最低単位', desc: '特定の区分で最低限取得が必要な単位数を設定します。例：外国語4単位以上' },
+                  { label: '区分別の上限単位', desc: '特定の区分で算入できる単位の上限を設定します。例：自由科目は10単位まで' },
+                  { label: '必修科目を指定', desc: '必ず取得しなければならない科目を指定します。未取得だとダッシュボードで警告が出ます。' },
+                  { label: '選択必修グループ', desc: '複数の科目から一定単位を取得する必要がある場合に使います。例：A群から6単位以上' },
+                ].map(r => (
+                  <div key={r.label} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">{r.label}</p>
+                      <p className="text-xs text-gray-500">{r.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+              <p className="text-sm font-medium text-blue-700 mb-1">💡 ドラッグで並び替え</p>
+              <p className="text-sm text-blue-600">区分は左端の「⠿」マークをドラッグして並び替えができます。</p>
+            </div>
+          </div>
+        </Section>
+
+        {/* 履修記録 */}
+        <Section title="📝 履修記録の入力方法">
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">「科目・履修」ページの「+ 履修を記録する」から入力できます。3つの入力モードがあります。</p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { mode: 'ルール内の科目', desc: 'ルールセットに登録した科目から選択。最も正確に単位が計算されます。', color: 'bg-blue-50 border-blue-200' },
+                { mode: '共有科目から', desc: '他のユーザーが公開した科目から選択します。', color: 'bg-green-50 border-green-200' },
+                { mode: '自由入力', desc: 'ルールに登録されていない科目（他学科履修・集中講義など）を手入力します。', color: 'bg-orange-50 border-orange-200' },
+              ].map(m => (
+                <div key={m.mode} className={`border rounded-lg p-3 ${m.color}`}>
+                  <p className="text-sm font-medium text-gray-700 mb-1">{m.mode}</p>
+                  <p className="text-xs text-gray-500">{m.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <p className="text-sm font-semibold text-gray-700 mb-2">履修状態の意味</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: '取得済み', color: 'bg-green-100 text-green-700', desc: '単位取得確定。卒業判定に算入されます。' },
+                  { label: '履修中', color: 'bg-blue-100 text-blue-700', desc: '現在受講中。判定には算入されません。' },
+                  { label: '履修予定', color: 'bg-gray-100 text-gray-600', desc: '将来取る予定。判定には算入されません。' },
+                  { label: '不合格', color: 'bg-red-100 text-red-600', desc: '不合格・未修得。履歴として残ります。' },
+                ].map(s => (
+                  <div key={s.label} className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg">
+                    <Tag text={s.label} color={s.color} />
+                    <p className="text-xs text-gray-500">{s.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        {/* ダッシュボード */}
+        <Section title="🏠 ダッシュボードの見方">
+          <div className="space-y-2">
+            {[
+              { icon: '📊', title: '卒業進捗バー', desc: '取得済み単位 ÷ 必要単位（total_credits_minルール）で計算されます。' },
+              { icon: '🔴', title: '未履修の必修科目', desc: 'is_required=trueの科目で未取得のものを表示します。最優先で履修しましょう。' },
+              { icon: '❌', title: '不足している条件', desc: '達成できていないルールを表示します。あと何単位必要かが分かります。' },
+              { icon: '✅', title: '達成済みの条件', desc: '要件を満たしているルールを表示します。' },
+              { icon: '📅', title: 'セメスタータイムライン', desc: '学期ごとの取得単位数と累積単位数を確認できます。進級条件の達成状況も表示されます。' },
+            ].map(item => (
+              <div key={item.title} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
+                <span className="text-lg">{item.icon}</span>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">{item.title}</p>
+                  <p className="text-xs text-gray-500">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        {/* 共有機能 */}
+        <Section title="🤝 共有機能について">
+          <div className="space-y-3">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-sm font-medium text-yellow-800 mb-1">⚠️ 注意事項</p>
+              <p className="text-sm text-yellow-700">共有されたルールセット・科目の内容は参考情報です。正確な内容は必ず大学公式の履修要覧でご確認ください。</p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex gap-3 p-3 bg-gray-50 rounded-lg">
+                <span className="text-base">📤</span>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">ルールセットを公開する</p>
+                  <p className="text-xs text-gray-500">ルール管理ページでルールセットを編集し、「公開する」チェックをオンにすると同大学のユーザーが閲覧・コピーできます。</p>
+                </div>
+              </div>
+              <div className="flex gap-3 p-3 bg-gray-50 rounded-lg">
+                <span className="text-base">📥</span>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">他のユーザーのルールセットをコピーする</p>
+                  <p className="text-xs text-gray-500">「同大学の公開ルールセット」セクションから「コピーして使う」で自分のルールセットとして複製できます。コピー後は自由に編集できます。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        {/* よくある質問 */}
+        <Section title="❓ よくある質問">
+          <div className="space-y-3">
+            <QA
+              q="取得済み単位の数が合わない"
+              a="アクティブなルールセットに登録されている科目の「取得済み」記録のみが計算対象です。自由入力の科目は総単位数にのみ算入され、区分別ルールには反映されません。"
+            />
+            <QA
+              q="必修科目が「未履修」と表示されるが、取得済みに設定している"
+              a="科目は「ルール内の科目」モードで登録する必要があります。自由入力や共有科目モードで登録した場合、必修チェックはルールエンジンに反映されません。"
+            />
+            <QA
+              q="TOEIC等の特例単位はどう入力する？"
+              a="「自由入力」モードで科目名に「英語免除」などと記入し、対応する区分名を入力してください。総単位数には算入されますが、区分別ルールへの反映は自動ではありません。"
+            />
+            <QA
+              q="公開ルールセットが表示されない"
+              a="「基本情報」で大学名を設定すると、同じ大学名のルールセットが表示されます。大学名の表記が完全一致する必要があります。"
+            />
+            <QA
+              q="ルールセットを削除できない"
+              a="他のユーザーがそのルールセットを使用中の場合、削除に制限がかかることがあります。先に「使用する」で別のルールセットに切り替えてから削除してください。"
+            />
+          </div>
+        </Section>
+
+        {/* 注意事項 */}
+        <div className="bg-gray-100 rounded-xl p-5">
+          <h2 className="text-base font-semibold text-gray-700 mb-2">⚠️ 免責事項</h2>
+          <p className="text-sm text-gray-600">
+            本ツールは履修管理を補助するためのものであり、正式な卒業判定・進級判定を行うものではありません。
+            卒業要件・進級要件は年度・コースによって異なる場合があります。
+            必ず最新の履修要覧・シラバス・大学公式案内を併せてご確認ください。
+            本ツールの利用によって生じた不利益について、開発者は一切の責任を負いません。
+          </p>
+        </div>
+
+        <div className="text-center pb-4 space-y-1">
+          <p className="text-xs text-gray-400">Rism - 履修ナビ</p>
+          <a href="https://forms.gle/YOUR_FORM_ID" target="_blank" rel="noopener noreferrer"
+            className="text-xs text-blue-400 hover:text-blue-600 underline">
+            お問い合わせ・バグ報告はこちら
+          </a>
+        </div>
+      </main>
+    </div>
+  )
+}

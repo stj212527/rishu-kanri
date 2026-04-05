@@ -78,6 +78,33 @@ export default function RulesPage() {
   // 【バグ4修正】削除エラーを表示するためのstate
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
+  // ===== 編集モード state =====
+  // 区分の編集
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [editingCategoryName, setEditingCategoryName] = useState('')
+  // 科目の編集
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null)
+  const [editingCourseName, setEditingCourseName] = useState('')
+  const [editingCourseCode, setEditingCourseCode] = useState('')
+  const [editingCourseCredits, setEditingCourseCredits] = useState(2)
+  const [editingCourseCategoryId, setEditingCourseCategoryId] = useState('')
+  const [editingCourseIsRequired, setEditingCourseIsRequired] = useState(false)
+  // ルールの編集
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
+  const [editingRuleMinCredits, setEditingRuleMinCredits] = useState(0)
+  const [editingRuleMaxCredits, setEditingRuleMaxCredits] = useState(0)
+  const [editingRuleCategoryId, setEditingRuleCategoryId] = useState('')
+  const [editingRuleCourseIds, setEditingRuleCourseIds] = useState<string[]>([])
+  const [editingRuleGroupName, setEditingRuleGroupName] = useState('')
+  // 進級条件の編集
+  const [editingSemId, setEditingSemId] = useState<string | null>(null)
+  const [editingSemLabel, setEditingSemLabel] = useState('')
+  const [editingSemCredits, setEditingSemCredits] = useState<number | null>(null)
+  const [editingSemCourseIds, setEditingSemCourseIds] = useState<string[]>([])
+  // ドラッグ&ドロップ
+  const [dragCategoryId, setDragCategoryId] = useState<string | null>(null)
+  const [dragOverCategoryId, setDragOverCategoryId] = useState<string | null>(null)
+
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
@@ -119,7 +146,11 @@ export default function RulesPage() {
       semMap[rs.id] = semRes.data || []
     }
     setSemesterRulesMap(semMap)
-    const pubRes = await supabase.from('rule_sets').select('*').eq('is_public', true).neq('created_by', user.id)
+    // 【修正2】公開ルールセットをDB側で同大学のみに絞る（他大学は取得しない）
+    const myUniversity = profileRes.data?.university_name || null
+    const pubRes = myUniversity
+      ? await supabase.from('rule_sets').select('*').eq('is_public', true).neq('created_by', user.id).eq('university_name', myUniversity)
+      : await supabase.from('rule_sets').select('*').eq('is_public', true).neq('created_by', user.id)
     const pubSets = pubRes.data || []
     const fullPubSets = await Promise.all(pubSets.map(async (rs) => {
       const [catRes, courseRes, ruleRes] = await Promise.all([
@@ -177,7 +208,12 @@ export default function RulesPage() {
           is_public: setIsPublic, version: 1, years_of_study: setYears, terms_per_year: setTerms,
         })
       }
-      setSetTitle(''); setSetUniversity(''); setSetFaculty(''); setSetDepartment('')
+      // 【修正1】保存後も基本情報はprofileDataの値にリセット（空にしない）
+      setSetTitle('')
+      setSetUniversity(profileData?.university_name || '')
+      setSetFaculty(profileData?.faculty_name || '')
+      setSetDepartment(profileData?.department_name || '')
+      setSetEntryYear(profileData?.entry_year || new Date().getFullYear())
       setSetDescription(''); setSetIsPublic(false); setEditingSetId(null); setShowSetForm(false)
       setSetYears(4); setSetTerms(2)
       fetchData()
@@ -185,9 +221,14 @@ export default function RulesPage() {
   }
 
   const handleEditSet = (rs: RuleSetFull) => {
-    setEditingSetId(rs.id); setSetTitle(rs.title); setSetUniversity(rs.university_name || '')
-    setSetFaculty(rs.faculty_name || ''); setSetDepartment(rs.department_name || '')
-    setSetEntryYear(rs.entry_year || new Date().getFullYear()); setSetDescription(rs.description || '')
+    setEditingSetId(rs.id)
+    setSetTitle(rs.title)
+    // 【修正1】ルールセット側に値がない場合はprofileDataで補完（新規作成直後など）
+    setSetUniversity(rs.university_name || profileData?.university_name || '')
+    setSetFaculty(rs.faculty_name || profileData?.faculty_name || '')
+    setSetDepartment(rs.department_name || profileData?.department_name || '')
+    setSetEntryYear(rs.entry_year || profileData?.entry_year || new Date().getFullYear())
+    setSetDescription(rs.description || '')
     setSetIsPublic(rs.is_public); setSetYears(rs.years_of_study || 4); setSetTerms(rs.terms_per_year || 2)
     setShowSetForm(true)
   }
@@ -326,6 +367,128 @@ export default function RulesPage() {
     await supabase.from('semester_rules').delete().eq('id', id); fetchData()
   }
 
+  // ===== 編集ハンドラ =====
+  // 区分の編集開始
+  const startEditCategory = (cat: RuleSetCategory) => {
+    setEditingCategoryId(cat.id)
+    setEditingCategoryName(cat.name)
+  }
+  const handleUpdateCategory = async () => {
+    if (!editingCategoryId || !editingCategoryName) return
+    setLoading(true)
+    try {
+      await supabase.from('rule_set_categories').update({ name: editingCategoryName }).eq('id', editingCategoryId)
+      setEditingCategoryId(null); setEditingCategoryName('')
+      fetchData()
+    } finally { setLoading(false) }
+  }
+
+  // 科目の編集開始
+  const startEditCourse = (course: RuleSetCourse) => {
+    setEditingCourseId(course.id)
+    setEditingCourseName(course.course_name)
+    setEditingCourseCode(course.course_code || '')
+    setEditingCourseCredits(course.credits)
+    setEditingCourseCategoryId(course.category_id || '')
+    setEditingCourseIsRequired(course.is_required)
+  }
+  const handleUpdateCourse = async () => {
+    if (!editingCourseId || !editingCourseName) return
+    setLoading(true)
+    try {
+      await supabase.from('rule_set_courses').update({
+        course_name: editingCourseName,
+        course_code: editingCourseCode || null,
+        credits: editingCourseCredits,
+        category_id: editingCourseCategoryId || null,
+        is_required: editingCourseIsRequired,
+      }).eq('id', editingCourseId)
+      setEditingCourseId(null)
+      fetchData()
+    } finally { setLoading(false) }
+  }
+
+  // ルールの編集開始
+  const startEditRule = (rule: RuleSetRule) => {
+    setEditingRuleId(rule.id)
+    const p = rule.rule_payload as Record<string, unknown>
+    setEditingRuleMinCredits((p.min_credits as number) || 0)
+    setEditingRuleMaxCredits((p.max_credits as number) || 0)
+    setEditingRuleCategoryId((p.category_id as string) || '')
+    setEditingRuleCourseIds((p.course_ids as string[]) || [])
+    setEditingRuleGroupName((p.group_name as string) || '')
+  }
+  const handleUpdateRule = async (rule: RuleSetRule, categories: RuleSetCategory[]) => {
+    if (!editingRuleId) return
+    setLoading(true)
+    try {
+      const cat = categories.find(c => c.id === editingRuleCategoryId)
+      let payload: Record<string, unknown> = {}
+      switch (rule.rule_type) {
+        case 'total_credits_min': payload = { min_credits: editingRuleMinCredits }; break
+        case 'category_credits_min': payload = { category_id: editingRuleCategoryId, category_name: cat?.name, min_credits: editingRuleMinCredits }; break
+        case 'category_credits_max': payload = { category_id: editingRuleCategoryId, category_name: cat?.name, max_credits: editingRuleMaxCredits }; break
+        case 'required_courses_all': payload = { course_ids: editingRuleCourseIds }; break
+        case 'elective_group_credits_min': payload = { course_ids: editingRuleCourseIds, group_name: editingRuleGroupName, min_credits: editingRuleMinCredits }; break
+      }
+      await supabase.from('rule_set_rules').update({ rule_payload: payload }).eq('id', editingRuleId)
+      setEditingRuleId(null)
+      fetchData()
+    } finally { setLoading(false) }
+  }
+
+  // 進級条件の編集開始
+  const startEditSem = (sem: SemesterRule) => {
+    setEditingSemId(sem.id)
+    setEditingSemLabel(sem.label || '')
+    setEditingSemCredits(sem.cumulative_min_credits || null)
+    setEditingSemCourseIds((sem.required_course_ids as string[]) || [])
+  }
+  const handleUpdateSem = async () => {
+    if (!editingSemId) return
+    setLoading(true)
+    try {
+      await supabase.from('semester_rules').update({
+        label: editingSemLabel || null,
+        cumulative_min_credits: editingSemCredits || null,
+        required_course_ids: editingSemCourseIds,
+      }).eq('id', editingSemId)
+      setEditingSemId(null)
+      fetchData()
+    } finally { setLoading(false) }
+  }
+
+  // ===== ドラッグ&ドロップ（区分の並べ替え） =====
+  const handleDragStart = (catId: string) => setDragCategoryId(catId)
+  const handleDragOver = (e: React.DragEvent, catId: string) => {
+    e.preventDefault()
+    setDragOverCategoryId(catId)
+  }
+  const handleDrop = async (rs: RuleSetFull, targetCatId: string) => {
+    if (!dragCategoryId || dragCategoryId === targetCatId) {
+      setDragCategoryId(null); setDragOverCategoryId(null); return
+    }
+    const cats = [...rs.categories]
+    const fromIdx = cats.findIndex(c => c.id === dragCategoryId)
+    const toIdx = cats.findIndex(c => c.id === targetCatId)
+    const [moved] = cats.splice(fromIdx, 1)
+    cats.splice(toIdx, 0, moved)
+    // sort_order を一括更新
+    await Promise.all(cats.map((c, i) =>
+      supabase.from('rule_set_categories').update({ sort_order: i }).eq('id', c.id)
+    ))
+    setDragCategoryId(null); setDragOverCategoryId(null)
+    fetchData()
+  }
+  const handleDragEnd = () => { setDragCategoryId(null); setDragOverCategoryId(null) }
+
+  const toggleEditingRuleCourseId = (id: string) => {
+    setEditingRuleCourseIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+  const toggleEditingSemCourseId = (id: string) => {
+    setEditingSemCourseIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
   const toggleCourseId = (id: string) => {
     setSelectedCourseIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
@@ -417,7 +580,7 @@ export default function RulesPage() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4">
           <div className="flex justify-between items-center py-4">
-            <h1 className="text-xl font-bold text-gray-900">履修管理ツール</h1>
+            <h1 className="text-xl font-bold text-gray-900">Rism</h1>
           </div>
           <div className="flex gap-1 -mb-px">
             {NAV_TABS.map(tab => (
@@ -620,23 +783,84 @@ export default function RulesPage() {
 
                       {getInnerTab(rs.id) === 'courses' && (
                         <div className="space-y-3">
+                          <p className="text-xs text-gray-400">💡 区分はドラッグで並び替えができます</p>
                           {rs.categories.map(cat => (
-                            <div key={cat.id} className="bg-white rounded-lg border border-gray-100 p-4">
-                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-base font-medium text-gray-700">{cat.name}</span>
-                                <button onClick={() => handleDeleteCategory(cat.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
-                              </div>
+                            <div key={cat.id}
+                              draggable
+                              onDragStart={() => handleDragStart(cat.id)}
+                              onDragOver={e => handleDragOver(e, cat.id)}
+                              onDrop={() => handleDrop(rs, cat.id)}
+                              onDragEnd={handleDragEnd}
+                              className={'bg-white rounded-lg border p-4 transition-all cursor-grab active:cursor-grabbing ' +
+                                (dragOverCategoryId === cat.id ? 'border-blue-400 bg-blue-50' : 'border-gray-100')}>
+
+                              {/* 区分ヘッダー */}
+                              {editingCategoryId === cat.id ? (
+                                <div className="flex gap-2 mb-2">
+                                  <span className="text-gray-300 select-none mr-1">⠿</span>
+                                  <input type="text" value={editingCategoryName} onChange={e => setEditingCategoryName(e.target.value)}
+                                    className="flex-1 border border-blue-300 rounded-lg px-3 py-1.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                  <button onClick={handleUpdateCategory} disabled={loading || !editingCategoryName}
+                                    className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50">保存</button>
+                                  <button onClick={() => setEditingCategoryId(null)}
+                                    className="border border-gray-300 text-gray-500 text-sm px-3 py-1.5 rounded-lg hover:bg-gray-50">×</button>
+                                </div>
+                              ) : (
+                                <div className="flex justify-between items-center mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-gray-300 select-none">⠿</span>
+                                    <span className="text-base font-medium text-gray-700">{cat.name}</span>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button onClick={() => startEditCategory(cat)} className="text-sm text-blue-400 hover:text-blue-600">編集</button>
+                                    <button onClick={() => handleDeleteCategory(cat.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 区分内の科目リスト */}
                               <div className="space-y-1">
                                 {rs.courses.filter(c => c.category_id === cat.id).map(course => (
-                                  <div key={course.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-base text-gray-700">{course.course_name}</span>
-                                      {course.is_required && <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">必修</span>}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm text-gray-400">{course.credits}単位</span>
-                                      <button onClick={() => handleDeleteCourse(course.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
-                                    </div>
+                                  <div key={course.id}>
+                                    {editingCourseId === course.id ? (
+                                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                                        <input type="text" value={editingCourseName} onChange={e => setEditingCourseName(e.target.value)}
+                                          placeholder="科目名 *" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                                        <div className="flex gap-2">
+                                          <select value={editingCourseCredits} onChange={e => setEditingCourseCredits(Number(e.target.value))}
+                                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                            {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}単位</option>)}
+                                          </select>
+                                          <select value={editingCourseCategoryId} onChange={e => setEditingCourseCategoryId(e.target.value)}
+                                            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                            <option value="">未分類</option>
+                                            {rs.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                          </select>
+                                        </div>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                          <input type="checkbox" checked={editingCourseIsRequired} onChange={e => setEditingCourseIsRequired(e.target.checked)} className="w-4 h-4 rounded" />
+                                          <span className="text-sm text-gray-700">必修科目</span>
+                                        </label>
+                                        <div className="flex gap-2">
+                                          <button onClick={handleUpdateCourse} disabled={loading || !editingCourseName}
+                                            className="flex-1 bg-blue-600 text-white text-sm py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">保存</button>
+                                          <button onClick={() => setEditingCourseId(null)}
+                                            className="flex-1 border border-gray-300 text-gray-600 text-sm py-2 rounded-lg hover:bg-gray-50">キャンセル</button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-base text-gray-700">{course.course_name}</span>
+                                          {course.is_required && <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">必修</span>}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm text-gray-400">{course.credits}単位</span>
+                                          <button onClick={() => startEditCourse(course)} className="text-sm text-blue-400 hover:text-blue-600">編集</button>
+                                          <button onClick={() => handleDeleteCourse(course.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                               </div>
@@ -646,15 +870,46 @@ export default function RulesPage() {
                             <div className="bg-white rounded-lg border border-gray-100 p-4">
                               <p className="text-base font-medium text-gray-400 mb-2">区分なし</p>
                               {rs.courses.filter(c => !c.category_id).map(course => (
-                                <div key={course.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg mb-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-base text-gray-700">{course.course_name}</span>
-                                    {course.is_required && <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">必修</span>}
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm text-gray-400">{course.credits}単位</span>
-                                    <button onClick={() => handleDeleteCourse(course.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
-                                  </div>
+                                <div key={course.id}>
+                                  {editingCourseId === course.id ? (
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2 mb-1">
+                                      <input type="text" value={editingCourseName} onChange={e => setEditingCourseName(e.target.value)}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                                      <div className="flex gap-2">
+                                        <select value={editingCourseCredits} onChange={e => setEditingCourseCredits(Number(e.target.value))}
+                                          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none bg-white">
+                                          {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}単位</option>)}
+                                        </select>
+                                        <select value={editingCourseCategoryId} onChange={e => setEditingCourseCategoryId(e.target.value)}
+                                          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-base focus:outline-none bg-white">
+                                          <option value="">未分類</option>
+                                          {rs.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
+                                      </div>
+                                      <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={editingCourseIsRequired} onChange={e => setEditingCourseIsRequired(e.target.checked)} className="w-4 h-4 rounded" />
+                                        <span className="text-sm text-gray-700">必修科目</span>
+                                      </label>
+                                      <div className="flex gap-2">
+                                        <button onClick={handleUpdateCourse} disabled={loading || !editingCourseName}
+                                          className="flex-1 bg-blue-600 text-white text-sm py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">保存</button>
+                                        <button onClick={() => setEditingCourseId(null)}
+                                          className="flex-1 border border-gray-300 text-gray-600 text-sm py-2 rounded-lg hover:bg-gray-50">キャンセル</button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg mb-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-base text-gray-700">{course.course_name}</span>
+                                        {course.is_required && <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">必修</span>}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm text-gray-400">{course.credits}単位</span>
+                                        <button onClick={() => startEditCourse(course)} className="text-sm text-blue-400 hover:text-blue-600">編集</button>
+                                        <button onClick={() => handleDeleteCourse(course.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -725,12 +980,82 @@ export default function RulesPage() {
                       {getInnerTab(rs.id) === 'rules' && (
                         <div className="space-y-3">
                           {rs.rules.map(rule => (
-                            <div key={rule.id} className="flex items-center justify-between bg-white rounded-lg border border-gray-100 px-4 py-3">
-                              <div>
-                                <p className="text-sm text-gray-400">{RULE_TYPE_LABELS[rule.rule_type]}</p>
-                                <p className="text-base text-gray-700">{getRuleSummary(rule)}</p>
-                              </div>
-                              <button onClick={() => handleDeleteRule(rule.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
+                            <div key={rule.id}>
+                              {editingRuleId === rule.id ? (
+                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                                  <p className="text-sm font-medium text-blue-700">{RULE_TYPE_LABELS[rule.rule_type]} を編集</p>
+                                  {rule.rule_type === 'total_credits_min' && (
+                                    <div>
+                                      <label className="block text-sm text-gray-500 mb-1">必要単位数</label>
+                                      <input type="number" value={editingRuleMinCredits} onChange={e => setEditingRuleMinCredits(Number(e.target.value))} min={1}
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                                    </div>
+                                  )}
+                                  {(rule.rule_type === 'category_credits_min' || rule.rule_type === 'category_credits_max') && (
+                                    <>
+                                      <div>
+                                        <label className="block text-sm text-gray-500 mb-1">対象区分</label>
+                                        <select value={editingRuleCategoryId} onChange={e => setEditingRuleCategoryId(e.target.value)}
+                                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                          <option value="">選択してください</option>
+                                          {rs.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm text-gray-500 mb-1">{rule.rule_type === 'category_credits_min' ? '最低単位数' : '上限単位数'}</label>
+                                        <input type="number" value={rule.rule_type === 'category_credits_min' ? editingRuleMinCredits : editingRuleMaxCredits}
+                                          onChange={e => rule.rule_type === 'category_credits_min' ? setEditingRuleMinCredits(Number(e.target.value)) : setEditingRuleMaxCredits(Number(e.target.value))} min={1}
+                                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                                      </div>
+                                    </>
+                                  )}
+                                  {rule.rule_type === 'elective_group_credits_min' && (
+                                    <>
+                                      <div>
+                                        <label className="block text-sm text-gray-500 mb-1">グループ名</label>
+                                        <input type="text" value={editingRuleGroupName} onChange={e => setEditingRuleGroupName(e.target.value)}
+                                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm text-gray-500 mb-1">最低単位数</label>
+                                        <input type="number" value={editingRuleMinCredits} onChange={e => setEditingRuleMinCredits(Number(e.target.value))} min={1}
+                                          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                                      </div>
+                                    </>
+                                  )}
+                                  {(rule.rule_type === 'required_courses_all' || rule.rule_type === 'elective_group_credits_min') && (
+                                    <div>
+                                      <label className="block text-sm text-gray-500 mb-2">対象科目を選択</label>
+                                      <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto bg-white">
+                                        {rs.courses.map(c => (
+                                          <label key={c.id} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50">
+                                            <input type="checkbox" checked={editingRuleCourseIds.includes(c.id)} onChange={() => toggleEditingRuleCourseId(c.id)} className="w-4 h-4 rounded" />
+                                            <span className="text-base text-gray-700">{c.course_name}</span>
+                                            <span className="text-sm text-gray-400 ml-auto">{c.credits}単位</span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="flex gap-2">
+                                    <button onClick={() => handleUpdateRule(rule, rs.categories)} disabled={loading}
+                                      className="flex-1 bg-blue-600 text-white text-sm py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50">保存</button>
+                                    <button onClick={() => setEditingRuleId(null)}
+                                      className="flex-1 border border-gray-300 text-gray-600 text-sm py-2.5 rounded-lg hover:bg-gray-50">キャンセル</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-between bg-white rounded-lg border border-gray-100 px-4 py-3">
+                                  <div>
+                                    <p className="text-sm text-gray-400">{RULE_TYPE_LABELS[rule.rule_type]}</p>
+                                    <p className="text-base text-gray-700">{getRuleSummary(rule)}</p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button onClick={() => startEditRule(rule)} className="text-sm text-blue-400 hover:text-blue-600">編集</button>
+                                    <button onClick={() => handleDeleteRule(rule.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ))}
                           {showRuleForm === rs.id ? (
@@ -834,15 +1159,49 @@ export default function RulesPage() {
                             const reqCourseIds = (sem.required_course_ids as string[]) || []
                             const reqCourseNames = reqCourseIds.map((id: string) => rs.courses.find(c => c.id === id)?.course_name).filter(Boolean)
                             return (
-                              <div key={sem.id} className="bg-white rounded-lg border border-purple-100 px-4 py-3">
-                                <div className="flex items-start justify-between">
-                                  <div>
-                                    <p className="text-base font-medium text-purple-700">{sem.label || autoLabel}</p>
-                                    {sem.cumulative_min_credits && <p className="text-sm text-gray-600 mt-0.5">累積{sem.cumulative_min_credits}単位以上</p>}
-                                    {reqCourseNames.length > 0 && <p className="text-sm text-gray-600 mt-0.5">必須科目：{reqCourseNames.join('、')}</p>}
+                              <div key={sem.id}>
+                                {editingSemId === sem.id ? (
+                                  <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 space-y-3">
+                                    <p className="text-sm font-medium text-purple-700">{sem.label || autoLabel} を編集</p>
+                                    <input type="text" value={editingSemLabel} onChange={e => setEditingSemLabel(e.target.value)}
+                                      placeholder="条件名（任意・空白で自動生成）"
+                                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white" />
+                                    <input type="number" value={editingSemCredits || ''} onChange={e => setEditingSemCredits(e.target.value ? Number(e.target.value) : null)}
+                                      placeholder="累積必要単位数（任意）"
+                                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white" />
+                                    <div>
+                                      <label className="block text-sm text-gray-500 mb-2">必須履修科目（任意）</label>
+                                      <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-40 overflow-y-auto bg-white">
+                                        {rs.courses.map(c => (
+                                          <label key={c.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50">
+                                            <input type="checkbox" checked={editingSemCourseIds.includes(c.id)} onChange={() => toggleEditingSemCourseId(c.id)} className="w-4 h-4 rounded" />
+                                            <span className="text-sm text-gray-700">{c.course_name}</span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <button onClick={handleUpdateSem} disabled={loading}
+                                        className="flex-1 bg-purple-600 text-white text-sm py-2.5 rounded-lg hover:bg-purple-700 disabled:opacity-50">保存</button>
+                                      <button onClick={() => setEditingSemId(null)}
+                                        className="flex-1 border border-gray-300 text-gray-600 text-sm py-2.5 rounded-lg hover:bg-gray-50">キャンセル</button>
+                                    </div>
                                   </div>
-                                  <button onClick={() => handleDeleteSemesterRule(sem.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
-                                </div>
+                                ) : (
+                                  <div className="bg-white rounded-lg border border-purple-100 px-4 py-3">
+                                    <div className="flex items-start justify-between">
+                                      <div>
+                                        <p className="text-base font-medium text-purple-700">{sem.label || autoLabel}</p>
+                                        {sem.cumulative_min_credits && <p className="text-sm text-gray-600 mt-0.5">累積{sem.cumulative_min_credits}単位以上</p>}
+                                        {reqCourseNames.length > 0 && <p className="text-sm text-gray-600 mt-0.5">必須科目：{reqCourseNames.join('、')}</p>}
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <button onClick={() => startEditSem(sem)} className="text-sm text-blue-400 hover:text-blue-600">編集</button>
+                                        <button onClick={() => handleDeleteSemesterRule(sem.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )
                           })}
@@ -915,20 +1274,34 @@ export default function RulesPage() {
         {/* 公開ルールセット */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-700">他のユーザーの公開ルールセット</h2>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-700">同大学の公開ルールセット</h2>
+              {/* 【修正2】同大学のみ表示。大学名は固定表示（変更不可） */}
+              {profileData?.university_name && (
+                <p className="text-sm text-blue-600 mt-0.5">
+                  🏫 {profileData.university_name} のルールセットのみ表示しています
+                </p>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3 mb-4">
-            <input type="text" placeholder="大学名で絞り込み" value={searchUniversity} onChange={e => setSearchUniversity(e.target.value)}
-              className="border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            {/* 大学名は固定（DB側でフィルタ済みのため読み取り専用表示） */}
+            <div className="col-span-2 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-base text-gray-500">
+              大学：{profileData?.university_name || '（基本情報未設定）'}
+            </div>
             <input type="text" placeholder="学部名で絞り込み" value={searchFaculty} onChange={e => setSearchFaculty(e.target.value)}
               className="border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
             <input type="text" placeholder="キーワード検索" value={searchKeyword} onChange={e => setSearchKeyword(e.target.value)}
-              className="border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 col-span-2" />
+              className="border border-gray-300 rounded-lg px-4 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <p className="text-sm text-gray-400 mb-3">{filteredPublicRuleSets.length}件</p>
 
-          {filteredPublicRuleSets.length === 0 ? (
-            <p className="text-base text-gray-400 text-center py-8">条件に一致するルールセットがありません</p>
+          {!profileData?.university_name ? (
+            <p className="text-base text-gray-400 text-center py-8">
+              基本情報に大学名を設定すると、同大学の公開ルールセットを閲覧できます。
+            </p>
+          ) : filteredPublicRuleSets.length === 0 ? (
+            <p className="text-base text-gray-400 text-center py-8">同大学の公開ルールセットはまだありません</p>
           ) : (
             <div className="space-y-3">
               {displayedPublicRuleSets.map(rs => (
