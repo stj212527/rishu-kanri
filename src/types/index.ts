@@ -1,4 +1,6 @@
-﻿export type UserProfile = {
+﻿// src/types/index.ts
+
+export type UserProfile = {
   id: string
   user_id: string
   university_name: string
@@ -48,13 +50,18 @@ export type RuleSetCourse = {
   is_required: boolean
   note: string | null
   created_at: string
-  category?: RuleSetCategory
 }
 
 export type RuleSetRule = {
   id: string
   rule_set_id: string
-  rule_type: 'total_credits_min' | 'category_credits_min' | 'category_credits_max' | 'required_courses_all' | 'elective_group_credits_min' | 'cross_category_overflow_min'
+  rule_type:
+    | 'total_credits_min'
+    | 'category_credits_min'
+    | 'category_credits_max'
+    | 'required_courses_all'
+    | 'elective_group_credits_min'
+    | 'multi_category_excess_min'  // ★ v5.0追加：複数区分の超過単位ルール
   rule_payload: Record<string, unknown>
   created_at: string
 }
@@ -78,16 +85,18 @@ export type UserCourseRecord = {
   shared_course_id: string | null
   custom_course_name: string | null
   custom_credits: number | null
-  rule_category_id: string | null
+  custom_category_id: string | null
+  rule_category_id: string | null  // ★ v5.0追加：自由入力科目のルール区分ID
   status: 'completed' | 'in_progress' | 'planned' | 'failed'
   acquired_year: number | null
   acquired_term: string | null
-  day_of_week: string | null
-  period_time: string | null
+  day_of_week: string | null        // ★ v4.0追加
+  period_time: string | null        // ★ v4.0追加
   grade: string | null
   memo: string | null
   created_at: string
   updated_at: string
+  // JOIN結果
   course?: RuleSetCourse
 }
 
