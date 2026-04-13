@@ -40,18 +40,19 @@ const Tag = ({ text, color }: { text: string; color: string }) => (
 export default function HelpPage() {
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      {/* 修正7・9: 統一ヘッダー */}
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
         <div className="max-w-3xl mx-auto px-4">
-          <div className="flex justify-between items-center py-4 gap-4">
-            <h1 className="text-xl font-bold text-gray-900">Rism</h1>
-            <span className="text-base font-semibold text-sky-600 shrink-0" aria-current="page">
-              使い方はこちら
-            </span>
+          <div className="flex justify-between items-center py-3">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-black text-blue-600 tracking-tight">Rism</span>
+              <span className="hidden sm:inline text-xs text-gray-400 border border-gray-200 rounded-full px-2 py-0.5">履修ナビ</span>
+            </div>
           </div>
-          <div className="flex gap-1 -mb-px">
+          <div className="flex gap-1 -mb-px overflow-x-auto">
             {NAV_TABS.map(tab => (
               <Link key={tab.href} href={tab.href}
-                className="px-4 py-2.5 text-base font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors">
+                className="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors whitespace-nowrap">
                 {tab.label}
               </Link>
             ))}
@@ -65,6 +66,24 @@ export default function HelpPage() {
         <div className="bg-blue-600 rounded-2xl p-6 text-white">
           <h2 className="text-2xl font-bold mb-1">使い方ガイド</h2>
           <p className="text-blue-100 text-base">Rismは大学の卒業要件・進級要件を自分でルール登録して、履修状況を可視化するツールです。</p>
+        </div>
+
+        {/* 修正5: 各ページ詳細ボタン */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-sm font-semibold text-gray-600 mb-3">各ページの詳しい説明を見る</p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { href: '#page-dashboard', label: '🏠 ホーム（ダッシュボード）', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+              { href: '#page-courses', label: '📝 科目・履修管理', color: 'bg-green-50 text-green-700 border-green-200' },
+              { href: '#page-rules', label: '⚙️ ルール管理', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+              { href: '#page-setup', label: '👤 基本情報', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+            ].map(btn => (
+              <a key={btn.href} href={btn.href}
+                className={'border rounded-xl px-4 py-3 text-sm font-medium text-center hover:opacity-80 transition-opacity ' + btn.color}>
+                {btn.label}
+              </a>
+            ))}
+          </div>
         </div>
 
         {/* はじめ方 */}
@@ -83,7 +102,7 @@ export default function HelpPage() {
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
               <p className="text-sm font-semibold text-gray-700">ルールセットの構造</p>
               <div className="text-sm text-gray-600 space-y-1">
-                <p>📁 <span className="font-medium">ルールセット</span>（例：2024年度 神奈川大学 工学部 経営工学科）</p>
+                <p>📁 <span className="font-medium">ルールセット</span>（例：2024年度 〇〇大学 〇〇学部 〇〇学科）</p>
                 <p className="ml-4">📂 <span className="font-medium">区分</span>（例：専門必修・外国語・A群）</p>
                 <p className="ml-8">📄 <span className="font-medium">科目</span>（例：線形代数学・経営学概論）</p>
                 <p className="ml-4">📏 <span className="font-medium">ルール</span>（例：総124単位以上・外国語4単位以上）</p>
@@ -227,6 +246,84 @@ export default function HelpPage() {
             />
           </div>
         </Section>
+
+        {/* 修正5: 各ページ詳細説明 */}
+        <div id="page-dashboard" className="bg-white rounded-xl border border-blue-100 p-5 space-y-3">
+          <h2 className="text-lg font-semibold text-blue-700">🏠 ホーム（ダッシュボード）</h2>
+          <p className="text-sm text-gray-600">履修状況の全体像を確認するメイン画面です。</p>
+          <div className="space-y-2">
+            {[
+              { t: '卒業進捗バー', d: 'total_credits_minルールに設定した総必要単位に対する取得済み単位の割合を表示します。' },
+              { t: '未履修の必修科目', d: 'ルールセットで「必修」に設定した科目のうち、未取得のものを赤枠で表示します。' },
+              { t: '不足している条件', d: '達成できていないルールを一覧表示します。あと何単位必要かが分かります。' },
+              { t: '達成済みの条件', d: '要件を満たしたルールを緑で表示します。' },
+              { t: 'セメスタータイムライン', d: '学期ごとの取得単位・累積単位・進級条件の達成状況を確認できます。「全学期を見る」で全期間を表示できます。' },
+              { t: '学年・学期の変更', d: 'ヘッダーの学年表示（例: 2年前期）をタップすると、現在の学年・学期をその場で変更できます。' },
+            ].map(item => (
+              <div key={item.t} className="flex gap-2 p-2 bg-blue-50 rounded-lg">
+                <span className="text-blue-400 font-bold text-sm min-w-fit">▸</span>
+                <div><span className="text-sm font-medium text-gray-700">{item.t}：</span><span className="text-sm text-gray-600">{item.d}</span></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div id="page-courses" className="bg-white rounded-xl border border-green-100 p-5 space-y-3">
+          <h2 className="text-lg font-semibold text-green-700">📝 科目・履修管理</h2>
+          <p className="text-sm text-gray-600">履修記録の登録・管理と科目の共有を行うページです。</p>
+          <div className="space-y-2">
+            {[
+              { t: 'ルール内の科目から登録', d: 'ルールセットに登録された科目から選択します。区分別・必修の判定が正確に反映されます。' },
+              { t: '共有科目から登録', d: '他のユーザーが公開した科目を選んで記録できます。' },
+              { t: '自由入力で登録', d: 'ルールに登録されていない科目（他学科履修・集中講義など）を手入力できます。ルールセットに区分がある場合は区分も選択でき、区分別の計算にも反映されます。' },
+              { t: '曜日・時限の入力', d: '将来の時間割機能に対応するため、履修科目の曜日と時限を記録できます。' },
+              { t: '自分の共有科目', d: '自分が登録した科目を他のユーザーに公開できます。同大学のユーザーが活用できます。' },
+            ].map(item => (
+              <div key={item.t} className="flex gap-2 p-2 bg-green-50 rounded-lg">
+                <span className="text-green-400 font-bold text-sm min-w-fit">▸</span>
+                <div><span className="text-sm font-medium text-gray-700">{item.t}：</span><span className="text-sm text-gray-600">{item.d}</span></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div id="page-rules" className="bg-white rounded-xl border border-emerald-100 p-5 space-y-3">
+          <h2 className="text-lg font-semibold text-emerald-700">⚙️ ルール管理</h2>
+          <p className="text-sm text-gray-600">ルールセット（卒業要件）の作成・編集・共有を行うページです。</p>
+          <div className="space-y-2">
+            {[
+              { t: '新規作成', d: '「+ 新規作成」ボタンで作成します。基本情報の大学名等が自動入力されます。在籍年数と学期制（2学期制／4学期制など）を選択してください。' },
+              { t: '編集', d: '「編集」ボタンで基本情報・区分・科目・ルール・進級条件をまとめて編集できます。' },
+              { t: '複製', d: '自分のルールセットを「複製」ボタンでコピーして別の学科用ルールセットを効率よく作れます。' },
+              { t: '区分の並び替え', d: '区分カードを左端の「⠿」マークでドラッグして順序を変更できます。' },
+              { t: '複数区分の超過単位ルール', d: '例：A群・B群・C群で各8単位が前提の場合、3区分の超過単位合計が6単位以上という条件を設定できます。' },
+              { t: '進級条件', d: '学期終了時点での累積単位数や必須科目の条件を設定します。ダッシュボードのタイムラインに反映されます。' },
+              { t: '公開・コピー', d: '「公開する」にすると同大学のユーザーが閲覧・コピーできます。コピー数が多いルールセットが上位表示されます。' },
+            ].map(item => (
+              <div key={item.t} className="flex gap-2 p-2 bg-emerald-50 rounded-lg">
+                <span className="text-emerald-400 font-bold text-sm min-w-fit">▸</span>
+                <div><span className="text-sm font-medium text-gray-700">{item.t}：</span><span className="text-sm text-gray-600">{item.d}</span></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div id="page-setup" className="bg-white rounded-xl border border-purple-100 p-5 space-y-3">
+          <h2 className="text-lg font-semibold text-purple-700">👤 基本情報</h2>
+          <p className="text-sm text-gray-600">大学・学部・学科・入学年度・現在の学年・学期を設定するページです。</p>
+          <div className="space-y-2">
+            {[
+              { t: '大学名・学部名・学科名', d: 'ルールセット作成時の自動入力と、公開ルールセットの絞り込みに使われます。正確に入力してください。' },
+              { t: '入学年度', d: 'ダッシュボードの学期タイムラインで「何年生か」を計算するために使います。' },
+              { t: '現在の学年・学期', d: 'ダッシュボードのデフォルト表示学期と、履修登録時の「未来学期」バリデーションに使います。ダッシュボードのヘッダーからも変更できます。' },
+            ].map(item => (
+              <div key={item.t} className="flex gap-2 p-2 bg-purple-50 rounded-lg">
+                <span className="text-purple-400 font-bold text-sm min-w-fit">▸</span>
+                <div><span className="text-sm font-medium text-gray-700">{item.t}：</span><span className="text-sm text-gray-600">{item.d}</span></div>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* 注意事項 */}
         <div className="bg-gray-100 rounded-xl p-5">

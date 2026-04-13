@@ -22,9 +22,10 @@ export type RuleSet = {
   description: string | null
   is_public: boolean
   version: number
-  original_rule_set_id: string | null
   years_of_study: number
   terms_per_year: number
+  original_rule_set_id: string | null
+  copy_count: number
   created_at: string
   updated_at: string
 }
@@ -53,8 +54,19 @@ export type RuleSetCourse = {
 export type RuleSetRule = {
   id: string
   rule_set_id: string
-  rule_type: 'total_credits_min' | 'category_credits_min' | 'category_credits_max' | 'required_courses_all' | 'elective_group_credits_min'
+  rule_type: 'total_credits_min' | 'category_credits_min' | 'category_credits_max' | 'required_courses_all' | 'elective_group_credits_min' | 'cross_category_overflow_min'
   rule_payload: Record<string, unknown>
+  created_at: string
+}
+
+export type SemesterRule = {
+  id: string
+  rule_set_id: string
+  year_num: number
+  term_num: number
+  label: string | null
+  cumulative_min_credits: number | null
+  required_course_ids: string[]
   created_at: string
 }
 
@@ -63,21 +75,35 @@ export type UserCourseRecord = {
   user_id: string
   rule_set_id: string
   template_course_id: string | null
+  shared_course_id: string | null
   custom_course_name: string | null
   custom_credits: number | null
-  custom_category_id: string | null
+  rule_category_id: string | null
   status: 'completed' | 'in_progress' | 'planned' | 'failed'
   acquired_year: number | null
   acquired_term: string | null
   day_of_week: string | null
   period_time: string | null
   grade: string | null
-  note: string | null
-  shared_course_id: string | null
   memo: string | null
   created_at: string
   updated_at: string
   course?: RuleSetCourse
+}
+
+export type SharedCourse = {
+  id: string
+  created_by: string
+  course_name: string
+  credits: number
+  category_name: string | null
+  university_name: string | null
+  faculty_name: string | null
+  is_required: boolean
+  note: string | null
+  is_public: boolean
+  created_at: string
+  updated_at: string
 }
 
 export type RuleSetNotification = {
@@ -98,30 +124,4 @@ export type RuleResult = {
   required_value: number
   shortage: number
   message: string
-}
-
-export type SemesterRule = {
-  id: string
-  rule_set_id: string
-  year_num: number
-  term_num: number
-  label: string | null
-  cumulative_min_credits: number | null
-  required_course_ids: string[]
-  created_at: string
-}
-
-export type SharedCourse = {
-  id: string
-  created_by: string
-  course_name: string
-  credits: number
-  category_name: string | null
-  university_name: string | null
-  faculty_name: string | null
-  is_required: boolean
-  note: string | null
-  is_public: boolean
-  created_at: string
-  updated_at: string
 }

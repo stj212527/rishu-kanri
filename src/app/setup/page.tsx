@@ -69,18 +69,22 @@ export default function SetupPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      {/* 修正7・9: 統一ヘッダー */}
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
         <div className="max-w-3xl mx-auto px-4">
-          <div className="flex justify-between items-center py-4 gap-4">
-            <h1 className="text-xl font-bold text-gray-900">履修管理ツール</h1>
-            <Link href="/help" className="text-base font-semibold text-sky-600 hover:text-sky-800 shrink-0">
-              使い方はこちら
+          <div className="flex justify-between items-center py-3">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-black text-blue-600 tracking-tight">Rism</span>
+              <span className="hidden sm:inline text-xs text-gray-400 border border-gray-200 rounded-full px-2 py-0.5">履修ナビ</span>
+            </div>
+            <Link href="/help" className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 border border-blue-200 rounded-full px-3 py-1 hover:bg-blue-50 transition-colors">
+              <span>?</span><span className="hidden sm:inline">使い方</span>
             </Link>
           </div>
-          <div className="flex gap-1 -mb-px">
+          <div className="flex gap-1 -mb-px overflow-x-auto">
             {NAV_TABS.map(tab => (
               <Link key={tab.href} href={tab.href}
-                className={'px-4 py-2.5 text-base font-medium border-b-2 transition-colors ' +
+                className={'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ' +
                   (tab.href === '/setup'
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300')}>
@@ -99,19 +103,19 @@ export default function SetupPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">大学名</label>
               <input type="text" value={universityName} onChange={e => setUniversityName(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="〇〇大学" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">学部名</label>
               <input type="text" value={facultyName} onChange={e => setFacultyName(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="〇〇学部" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">学科名</label>
               <input type="text" value={departmentName} onChange={e => setDepartmentName(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="〇〇学科" />
             </div>
             <div>

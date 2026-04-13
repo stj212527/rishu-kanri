@@ -26,6 +26,10 @@ export default function Dashboard() {
   const [showAllSemesters, setShowAllSemesters] = useState(false)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
+  // 【修正11】ダッシュボードで学年・学期を編集
+  const [showYearTermEdit, setShowYearTermEdit] = useState(false)
+  const [editYear, setEditYear] = useState(1)
+  const [editTerm, setEditTerm] = useState(1)
   const router = useRouter()
   const supabase = createClient()
 
@@ -83,6 +87,19 @@ export default function Dashboard() {
   const handleDismissNotification = async (id: string) => {
     await supabase.from('rule_set_notifications').update({ is_read: true }).eq('id', id)
     setNotifications(prev => prev.filter(n => n.id !== id))
+  }
+
+  // 【修正11】学年・学期の更新
+  const handleUpdateYearTerm = async () => {
+    if (!profile) return
+    await supabase.from('user_profiles').update({
+      current_year: editYear,
+      current_term: editTerm,
+    }).eq('user_id', profile.user_id)
+    // ローカルのprofileを更新して再描画
+    setProfile(prev => prev ? { ...prev, current_year: editYear, current_term: editTerm } : prev)
+    setExpandedCards(new Set([editYear + '-' + editTerm]))
+    setShowYearTermEdit(false)
   }
 
   const handleSignOut = async () => {
@@ -164,34 +181,38 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ヘッダー */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      {/* 修正7・9: 統一ヘッダー */}
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
         <div className="max-w-3xl mx-auto px-4">
-          <div className="flex justify-between items-center py-4">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">履修管理ツール</h1>
+          <div className="flex justify-between items-center py-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-2xl font-black text-blue-600 tracking-tight">Rism</span>
+              <span className="hidden sm:inline text-xs text-gray-400 border border-gray-200 rounded-full px-2 py-0.5">履修ナビ</span>
               {profile && (
-                <p className="text-sm text-gray-500">
-                  {profile.university_name} {profile.faculty_name}
+                <span className="text-xs text-gray-500">
+                  {profile.university_name}
+                  {/* 修正11: 学年・学期をクリックで編集 */}
                   {profile.current_year && (
-                    <span className="ml-2 text-blue-500">{profile.current_year}年{getTermLabel(profile.current_term, termsPerYear)}</span>
+                    <button
+                      onClick={() => { setEditYear(profile.current_year); setEditTerm(profile.current_term); setShowYearTermEdit(true) }}
+                      className="ml-2 text-blue-500 hover:text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 hover:bg-blue-50 transition-colors">
+                      {profile.current_year}年{getTermLabel(profile.current_term, termsPerYear)} ✏️
+                    </button>
                   )}
-                </p>
+                </span>
               )}
             </div>
-            <div className="flex items-center gap-4 shrink-0">
-              <Link href="/help" className="text-base font-semibold text-sky-600 hover:text-sky-800">
-                使い方はこちら
+            <div className="flex items-center gap-2">
+              <Link href="/help" className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 border border-blue-200 rounded-full px-3 py-1 hover:bg-blue-50 transition-colors">
+                <span>?</span><span className="hidden sm:inline">使い方</span>
               </Link>
-              <button type="button" onClick={handleSignOut} className="text-base font-semibold text-gray-800 hover:text-gray-950">
-                ログアウト
-              </button>
+              <button onClick={handleSignOut} className="text-xs text-gray-400 hover:text-gray-600">ログアウト</button>
             </div>
           </div>
-          <div className="flex gap-1 -mb-px">
+          <div className="flex gap-1 -mb-px overflow-x-auto">
             {NAV_TABS.map(tab => (
               <Link key={tab.href} href={tab.href}
-                className={'px-4 py-2.5 text-base font-medium border-b-2 transition-colors ' +
+                className={'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ' +
                   (tab.href === '/dashboard'
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300')}>
@@ -201,6 +222,41 @@ export default function Dashboard() {
           </div>
         </div>
       </header>
+
+      {/* 修正11: 学年・学期編集モーダル */}
+      {showYearTermEdit && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl space-y-4">
+            <h2 className="text-lg font-bold text-gray-800">現在の学年・学期を変更</h2>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="block text-sm text-gray-500 mb-1">学年</label>
+                <select value={editYear} onChange={e => setEditYear(Number(e.target.value))}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {[1,2,3,4,5,6].map(y => <option key={y} value={y}>{y}年</option>)}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm text-gray-500 mb-1">学期</label>
+                <select value={editTerm} onChange={e => setEditTerm(Number(e.target.value))}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {[1,2,3,4].map(t => <option key={t} value={t}>{t}学期</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={handleUpdateYearTerm}
+                className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors">
+                保存する
+              </button>
+              <button onClick={() => setShowYearTermEdit(false)}
+                className="flex-1 border border-gray-300 text-gray-600 py-3 rounded-lg hover:bg-gray-50 transition-colors">
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-5">
 

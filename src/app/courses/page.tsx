@@ -81,6 +81,25 @@ export default function CoursesPage() {
   const router = useRouter()
   const supabase = createClient()
 
+  // 自分の共有科目の編集モード
+  const [editingSharedId, setEditingSharedId] = useState<string | null>(null)
+  const [editSharedName, setEditSharedName] = useState('')
+  const [editSharedCredits, setEditSharedCredits] = useState(2)
+  const [editSharedCategory, setEditSharedCategory] = useState('')
+  const [editSharedIsRequired, setEditSharedIsRequired] = useState(false)
+  const [editSharedNote, setEditSharedNote] = useState('')
+  const [editSharedIsPublic, setEditSharedIsPublic] = useState(false)
+
+  // 履修記録の編集モード
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null)
+  const [editStatus, setEditStatus] = useState('completed')
+  const [editYear, setEditYear] = useState(new Date().getFullYear())
+  const [editTerm, setEditTerm] = useState('前期')
+  const [editDayOfWeek, setEditDayOfWeek] = useState('')
+  const [editPeriodTime, setEditPeriodTime] = useState('')
+  const [editGrade, setEditGrade] = useState('')
+  const [editMemo, setEditMemo] = useState('')
+
   const fetchData = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/'); return }
@@ -210,6 +229,8 @@ export default function CoursesPage() {
         await supabase.from('user_course_records').insert({
           user_id: userId, rule_set_id: activeRuleSetId,
           custom_course_name: freeName, custom_credits: freeCredits,
+          // 【修正1】rule_category_idを保存してルールエンジンの区分別計算に反映
+          rule_category_id: freeCategoryId || null,
           status, acquired_year: acquiredYear, acquired_term: acquiredTerm,
           day_of_week: dayOfWeek || null, period_time: periodTime || null,
           grade: grade || null, memo: memo || null
@@ -260,11 +281,69 @@ export default function CoursesPage() {
     await supabase.from('user_course_records').update({ status: s }).eq('id', id)
     fetchData()
   }
+
+  // 履修記録の編集開始
+  const startEditRecord = (record: UserCourseRecord) => {
+    setEditingRecordId(record.id)
+    setEditStatus(record.status)
+    setEditYear(record.acquired_year || new Date().getFullYear())
+    setEditTerm(record.acquired_term || '前期')
+    setEditDayOfWeek(record.day_of_week || '')
+    setEditPeriodTime(record.period_time || '')
+    setEditGrade(record.grade || '')
+    setEditMemo(record.memo || '')
+  }
+
+  // 履修記録の更新保存
+  const handleUpdateRecord = async () => {
+    if (!editingRecordId) return
+    setLoading(true)
+    try {
+      await supabase.from('user_course_records').update({
+        status: editStatus,
+        acquired_year: editYear,
+        acquired_term: editTerm,
+        day_of_week: editDayOfWeek || null,
+        period_time: editPeriodTime || null,
+        grade: editGrade || null,
+        memo: editMemo || null,
+      }).eq('id', editingRecordId)
+      setEditingRecordId(null)
+      fetchData()
+    } finally { setLoading(false) }
+  }
   const handleDeleteRecord = async (id: string) => {
     if (!confirm('削除しますか？')) return
     await supabase.from('user_course_records').delete().eq('id', id)
     fetchData()
   }
+  const startEditShared = (course: SharedCourse) => {
+    setEditingSharedId(course.id)
+    setEditSharedName(course.course_name)
+    setEditSharedCredits(course.credits)
+    setEditSharedCategory(course.category_name || '')
+    setEditSharedIsRequired(course.is_required)
+    setEditSharedNote(course.note || '')
+    setEditSharedIsPublic(course.is_public)
+  }
+
+  const handleUpdateShared = async () => {
+    if (!editingSharedId) return
+    setLoading(true)
+    try {
+      await supabase.from('shared_courses').update({
+        course_name: editSharedName,
+        credits: editSharedCredits,
+        category_name: editSharedCategory || null,
+        is_required: editSharedIsRequired,
+        note: editSharedNote || null,
+        is_public: editSharedIsPublic,
+      }).eq('id', editingSharedId)
+      setEditingSharedId(null)
+      fetchData()
+    } finally { setLoading(false) }
+  }
+
   const handleTogglePublic = async (id: string, cur: boolean) => {
     await supabase.from('shared_courses').update({ is_public: !cur }).eq('id', id)
     fetchData()
@@ -284,21 +363,23 @@ export default function CoursesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      {/* 修正7・9: 統一ヘッダー */}
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
         <div className="max-w-3xl mx-auto px-4">
-          <div className="flex justify-between items-center py-4 gap-4">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">履修管理ツール</h1>
-              <p className="text-sm text-gray-500">取得済み単位：{totalCredits}単位</p>
+          <div className="flex justify-between items-center py-3">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-black text-blue-600 tracking-tight">Rism</span>
+              <span className="hidden sm:inline text-xs text-gray-400 border border-gray-200 rounded-full px-2 py-0.5">履修ナビ</span>
+              <span className="text-xs text-gray-400">取得済み {totalCredits}単位</span>
             </div>
-            <Link href="/help" className="text-base font-semibold text-sky-600 hover:text-sky-800 shrink-0">
-              使い方はこちら
+            <Link href="/help" className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 border border-blue-200 rounded-full px-3 py-1 hover:bg-blue-50 transition-colors">
+              <span>?</span><span className="hidden sm:inline">使い方</span>
             </Link>
           </div>
-          <div className="flex gap-1 -mb-px">
+          <div className="flex gap-1 -mb-px overflow-x-auto">
             {NAV_TABS.map(tab => (
               <Link key={tab.href} href={tab.href}
-                className={'px-4 py-2.5 text-base font-medium border-b-2 transition-colors ' +
+                className={'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ' +
                   (tab.href === '/courses' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300')}>
                 {tab.label}
               </Link>
@@ -518,32 +599,99 @@ export default function CoursesPage() {
               </div>
             ) : records.map(record => {
               const statusOption = STATUS_OPTIONS.find(s => s.value === record.status)
+              const isEditing = editingRecordId === record.id
               return (
-                <div key={record.id} className="py-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-base font-medium text-gray-800">{getCourseName(record)}</span>
-                        <span className={`text-sm px-2 py-0.5 rounded-full ${statusOption?.color}`}>{statusOption?.label}</span>
+                <div key={record.id} className={'py-4 ' + (isEditing ? 'border-b border-blue-100' : 'border-b border-gray-50 last:border-0')}>
+                  {isEditing ? (
+                    /* ── 編集モード ── */
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                      <p className="text-sm font-medium text-blue-700">{getCourseName(record)} を編集</p>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">履修状態</label>
+                        <select value={editStatus} onChange={e => setEditStatus(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                          {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
                       </div>
-                      <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        <span className="text-sm text-gray-400">{getCourseCredits(record)}単位</span>
-                        {record.acquired_year && <span className="text-sm text-gray-400">{record.acquired_year}年度 {record.acquired_term}</span>}
-                        {(record.day_of_week || record.period_time) && (
-                          <span className="text-sm text-gray-400">{record.day_of_week}{record.period_time}</span>
-                        )}
-                        {record.grade && <span className="text-sm bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{record.grade}</span>}
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <label className="block text-xs text-gray-500 mb-1">年度</label>
+                          <select value={editYear} onChange={e => setEditYear(Number(e.target.value))}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            {years.map(y => <option key={y} value={y}>{y}年度</option>)}
+                          </select>
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs text-gray-500 mb-1">学期</label>
+                          <select value={editTerm} onChange={e => setEditTerm(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            {['前期', '後期', '通年', '集中'].map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
                       </div>
-                      {record.memo && <p className="text-sm text-gray-500 mt-1">{record.memo}</p>}
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <label className="block text-xs text-gray-500 mb-1">曜日</label>
+                          <select value={editDayOfWeek} onChange={e => setEditDayOfWeek(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <option value="">未設定</option>
+                            {['月', '火', '水', '木', '金', '土', '日', '集中'].map(d => <option key={d} value={d}>{d}曜日</option>)}
+                          </select>
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs text-gray-500 mb-1">時限</label>
+                          <select value={editPeriodTime} onChange={e => setEditPeriodTime(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            <option value="">未設定</option>
+                            {['1限', '2限', '3限', '4限', '5限', '6限', '7限'].map(p => <option key={p} value={p}>{p}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">成績（任意）</label>
+                        <input type="text" value={editGrade} onChange={e => setEditGrade(e.target.value)}
+                          placeholder="例：A、優" className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">備考（任意）</label>
+                        <textarea value={editMemo} onChange={e => setEditMemo(e.target.value)} rows={2}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                      </div>
+                      <div className="flex gap-3">
+                        <button onClick={handleUpdateRecord} disabled={loading}
+                          className="flex-1 bg-blue-600 text-white text-base py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                          {loading ? '保存中...' : '保存する'}
+                        </button>
+                        <button onClick={() => setEditingRecordId(null)}
+                          className="flex-1 border border-gray-300 text-gray-600 text-base py-2.5 rounded-lg hover:bg-gray-50 transition-colors">
+                          キャンセル
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 ml-2">
-                      <select value={record.status} onChange={e => handleUpdateStatus(record.id, e.target.value)}
-                        className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                      </select>
-                      <button onClick={() => handleDeleteRecord(record.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
+                  ) : (
+                    /* ── 表示モード ── */
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-base font-medium text-gray-800">{getCourseName(record)}</span>
+                          <span className={`text-sm px-2 py-0.5 rounded-full ${statusOption?.color}`}>{statusOption?.label}</span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          <span className="text-sm text-gray-400">{getCourseCredits(record)}単位</span>
+                          {record.acquired_year && <span className="text-sm text-gray-400">{record.acquired_year}年度 {record.acquired_term}</span>}
+                          {(record.day_of_week || record.period_time) && (
+                            <span className="text-sm text-gray-400">{record.day_of_week}{record.period_time}</span>
+                          )}
+                          {record.grade && <span className="text-sm bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{record.grade}</span>}
+                        </div>
+                        {record.memo && <p className="text-sm text-gray-500 mt-1">{record.memo}</p>}
+                      </div>
+                      <div className="flex items-center gap-2 ml-2">
+                        <button onClick={() => startEditRecord(record)} className="text-sm text-blue-400 hover:text-blue-600">編集</button>
+                        <button onClick={() => handleDeleteRecord(record.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )
             })}
@@ -644,28 +792,81 @@ export default function CoursesPage() {
             <p className="text-base text-gray-400 text-center py-6">登録した科目がまだありません</p>
           ) : (
             <div className="divide-y divide-gray-100">
-              {mySharedCourses.map(c => (
-                <div key={c.id} className="py-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-base font-medium text-gray-800">{c.course_name}</span>
-                        <span className="text-sm text-gray-400">{c.credits}単位</span>
-                        {c.is_required && <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">必修</span>}
-                        {c.category_name && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">{c.category_name}</span>}
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${c.is_public ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                          {c.is_public ? '公開中' : '非公開'}
-                        </span>
+              {mySharedCourses.map(sc => (
+                <div key={sc.id} className="py-4">
+                  {editingSharedId === sc.id ? (
+                    /* ── 編集モード ── */
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                      <p className="text-sm font-medium text-blue-700">共有科目を編集</p>
+                      <input type="text" value={editSharedName} onChange={e => setEditSharedName(e.target.value)}
+                        placeholder="科目名 *"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <label className="block text-xs text-gray-500 mb-1">単位数</label>
+                          <select value={editSharedCredits} onChange={e => setEditSharedCredits(Number(e.target.value))}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                            {[0.5,1,1.5,2,3,4,5,6,8].map(n => <option key={n} value={n}>{n}単位</option>)}
+                          </select>
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs text-gray-500 mb-1">区分名（任意）</label>
+                          <input type="text" value={editSharedCategory} onChange={e => setEditSharedCategory(e.target.value)}
+                            placeholder="例：専門必修"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                        </div>
                       </div>
-                      {c.note && <p className="text-sm text-gray-500 mt-1">{c.note}</p>}
+                      <input type="text" value={editSharedNote} onChange={e => setEditSharedNote(e.target.value)}
+                        placeholder="備考（任意）"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={editSharedIsRequired} onChange={e => setEditSharedIsRequired(e.target.checked)} className="w-4 h-4 rounded" />
+                          <span className="text-sm text-gray-700">必修科目</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={editSharedIsPublic} onChange={e => setEditSharedIsPublic(e.target.checked)} className="w-4 h-4 rounded" />
+                          <span className="text-sm text-gray-700">公開する</span>
+                        </label>
+                      </div>
+                      {editSharedIsPublic && (
+                        <p className="text-xs text-blue-600 bg-blue-100 rounded-lg px-3 py-2">{userProfile?.university_name} {userProfile?.faculty_name} の科目として公開されます</p>
+                      )}
+                      <div className="flex gap-3">
+                        <button onClick={handleUpdateShared} disabled={loading || !editSharedName}
+                          className="flex-1 bg-blue-600 text-white text-base py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                          {loading ? '保存中...' : '保存する'}
+                        </button>
+                        <button onClick={() => setEditingSharedId(null)}
+                          className="flex-1 border border-gray-300 text-gray-600 text-base py-2.5 rounded-lg hover:bg-gray-50 transition-colors">
+                          キャンセル
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-2 ml-2">
-                      <button onClick={() => handleTogglePublic(c.id, c.is_public)} className="text-sm text-blue-500 hover:text-blue-700 whitespace-nowrap">
-                        {c.is_public ? '非公開にする' : '公開する'}
-                      </button>
-                      <button onClick={() => handleDeleteMyShared(c.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
+                  ) : (
+                    /* ── 表示モード ── */
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-base font-medium text-gray-800">{sc.course_name}</span>
+                          <span className="text-sm text-gray-400">{sc.credits}単位</span>
+                          {sc.is_required && <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">必修</span>}
+                          {sc.category_name && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">{sc.category_name}</span>}
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${sc.is_public ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {sc.is_public ? '公開中' : '非公開'}
+                          </span>
+                        </div>
+                        {sc.note && <p className="text-sm text-gray-500 mt-1">{sc.note}</p>}
+                      </div>
+                      <div className="flex gap-2 ml-2">
+                        <button onClick={() => startEditShared(sc)} className="text-sm text-blue-400 hover:text-blue-600">編集</button>
+                        <button onClick={() => handleTogglePublic(sc.id, sc.is_public)} className="text-sm text-blue-500 hover:text-blue-700 whitespace-nowrap">
+                          {sc.is_public ? '非公開にする' : '公開する'}
+                        </button>
+                        <button onClick={() => handleDeleteMyShared(sc.id)} className="text-sm text-red-400 hover:text-red-600">削除</button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
