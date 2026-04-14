@@ -239,7 +239,19 @@ export default function RulesPage() {
           is_public: setIsPublic, version: 1, years_of_study: setYears, terms_per_year: setTerms,
         })
       }
-      // 【修正6】自分のルールセットを複製
+      // 【修正1】保存後も基本情報はprofileDataの値にリセット（空にしない）
+      setSetTitle('')
+      setSetUniversity(profileData?.university_name || '')
+      setSetFaculty(profileData?.faculty_name || '')
+      setSetDepartment(profileData?.department_name || '')
+      setSetEntryYear(profileData?.entry_year || new Date().getFullYear())
+      setSetDescription(''); setSetIsPublic(false); setEditingSetId(null); setShowSetForm(false)
+      setSetYears(4); setSetTerms(2)
+      fetchData()
+    } finally { setLoading(false) }
+  }
+
+  // 【修正6】自分のルールセットを複製
   const handleDuplicateMySet = async (rs: RuleSetFull) => {
     if (!confirm('"' + rs.title + '" を複製しますか？')) return
     setLoading(true)
@@ -274,7 +286,6 @@ export default function RulesPage() {
             rule_set_id: newId, rule_type: r.rule_type, rule_payload: r.rule_payload,
           })))
         }
-        // 進級条件もコピー
         const semRules = semesterRulesMap[rs.id] || []
         if (semRules.length > 0) {
           await supabase.from('semester_rules').insert(semRules.map(s => ({
@@ -285,18 +296,6 @@ export default function RulesPage() {
         }
       }
       alert('複製しました。')
-      fetchData()
-    } finally { setLoading(false) }
-  }
-
-  // 【修正1】保存後も基本情報はprofileDataの値にリセット（空にしない）
-      setSetTitle('')
-      setSetUniversity(profileData?.university_name || '')
-      setSetFaculty(profileData?.faculty_name || '')
-      setSetDepartment(profileData?.department_name || '')
-      setSetEntryYear(profileData?.entry_year || new Date().getFullYear())
-      setSetDescription(''); setSetIsPublic(false); setEditingSetId(null); setShowSetForm(false)
-      setSetYears(4); setSetTerms(2)
       fetchData()
     } finally { setLoading(false) }
   }
